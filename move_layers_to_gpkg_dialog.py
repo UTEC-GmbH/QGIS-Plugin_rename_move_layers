@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-/***************************************************************************
+"""/***************************************************************************
  MoveLayersToGPKGDialog
                                  A QGIS plugin
  This plugin renames selected layers (if they are nested in groups) and moves them to a new GeoPackage
@@ -28,8 +27,9 @@ from qgis.PyQt import uic
 from qgis.PyQt import QtWidgets
 
 # This loads your .ui file so that PyQt can populate your plugin with the elements from Qt Designer
-FORM_CLASS, _ = uic.loadUiType(os.path.join(
-    os.path.dirname(__file__), 'move_layers_to_gpkg_dialog_base.ui'))
+FORM_CLASS, _ = uic.loadUiType(
+    os.path.join(os.path.dirname(__file__), "move_layers_to_gpkg_dialog_base.ui")
+)
 
 
 class MoveLayersToGPKGDialog(QtWidgets.QDialog, FORM_CLASS):
