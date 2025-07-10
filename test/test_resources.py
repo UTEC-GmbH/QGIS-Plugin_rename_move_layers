@@ -8,14 +8,13 @@
 
 """
 
-__author__ = 'lasinludwig@gmail.com'
-__date__ = '2025-03-04'
-__copyright__ = 'Copyright 2025, Florian Ludwig'
+__author__ = "lasinludwig@gmail.com"
+__date__ = "2025-03-04"
+__copyright__ = "Copyright 2025, Florian Ludwig"
 
 import unittest
 
 from qgis.PyQt.QtGui import QIcon
-
 
 
 class MoveLayersToGPKGDialogTest(unittest.TestCase):
@@ -31,14 +30,12 @@ class MoveLayersToGPKGDialogTest(unittest.TestCase):
 
     def test_icon_png(self):
         """Test we can click OK."""
-        path = ':/plugins/MoveLayersToGPKG/icon.png'
+        path = ":/plugins/QGIS_plugin_move_layers_to_gpkg/icon.png"
         icon = QIcon(path)
         self.assertFalse(icon.isNull())
+
 
 if __name__ == "__main__":
     suite = unittest.makeSuite(MoveLayersToGPKGResourcesTest)
     runner = unittest.TextTestRunner(verbosity=2)
     runner.run(suite)
-
-
-
