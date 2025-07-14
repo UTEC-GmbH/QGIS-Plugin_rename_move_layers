@@ -1,6 +1,6 @@
 """*******************************************************************
 ***************************************************************************
- MoveLayersToGPKG
+ RenameAndMoveLayersToGPKG
                                  A QGIS plugin
  This plugin renames selected layers (if they are nested in groups)
  and moves them to a new GeoPackage or adds them to an existing one.
@@ -24,19 +24,22 @@
 """
 
 from pathlib import Path
-from typing import Any
+from typing import Callable
 
-from qgis.core import Qgis, QgsLayerTreeGroup, QgsProject
+from qgis.core import Qgis, QgsLayerTreeGroup, QgsMapLayer, QgsProject
 from qgis.gui import QgisInterface
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
 
+from . import resources  # noqa: F401
+from .move_layers_to_gpkg_dialog import MoveLayersToGPKGDialog
 
-class MoveLayersToGPKG:
+
+class RenameAndMoveLayersToGPKG:
     """QGIS Plugin for renaming and moving layers to a GeoPackage."""
 
     def __init__(self, iface: QgisInterface) -> None:
-        """Initialize the MoveLayersToGPKG plugin.
+        """Initialize the RenameAndMoveLayersToGPKG plugin.
 
         :param iface: An interface instance that allows interaction with QGIS.
         """
@@ -46,18 +49,19 @@ class MoveLayersToGPKG:
         self.actions: list = []
         self.menu: str = "Move Layers to GeoPackage"
         self.dlg = None
+        self.icon_path = ":/plugins/QGIS_plugin_move_layers_to_gpkg/icon.png"
 
     def add_action(
         self,
         icon_path: str,
-        text: str,  # type: ignore
-        callback: Any,
+        text: str,
+        callback: Callable,
         enabled_flag: bool = True,
         add_to_menu: bool = True,
         add_to_toolbar: bool = True,
         status_tip: str | None = None,
         whats_this: str | None = None,
-        parent: Any | None = None,
+        parent: None = None,
     ) -> QAction:
         """Add a toolbar icon to the toolbar.
 
@@ -123,26 +127,23 @@ class MoveLayersToGPKG:
 
         return action
 
-    def initGui(self):
+    def initGui(self) -> None:  # noqa: N802
         """Set up GUI and connect signals.
 
         Called when the plugin is loaded according to the plugin QGIS metadata.
         """
 
         # Create action that will start plugin configuration
-        self.icon_path = ":/plugins/QGIS_plugin_move_layers_to_gpkg/icon.png"
-        action = self.add_action(
+        self.add_action(
             self.icon_path,
-            text="Rename Selected Layer to Group Name",
-            callback=self.rename_selected_layer,
+            text=self.menu,
+            callback=self.run,
             parent=self.iface.mainWindow(),
-            status_tip="Rename the selected layer to its parent group name (if in a group)",
-            whats_this="This action renames the currently selected layer in the layer panel to the name of its parent group, useful after DXF import.",
+            status_tip=f"Open the {self.menu} dialog",
+            whats_this=f"This opens the {self.menu} dialog.",
         )
 
-        self.actions.append(action)
-
-    def unload(self):
+    def unload(self) -> None:
         """Plugin unload method.
 
         Called when the plugin is unloaded according to the plugin QGIS metadata.
@@ -152,16 +153,23 @@ class MoveLayersToGPKG:
             self.iface.removePluginMenu("Move Layers to GeoPackage", action)
             self.iface.removeToolBarIcon(action)
 
-    def run(self):
-        """Run method that performs some action when the plugin is activated."""
-        # Implement your plugin logic here
-        # This is where the code for moving layers to a GeoPackage should go
+    def run(self) -> None:
+        """Run method that opens the plugin dialog."""
+        # Create the dialog with elements (after translation) and keep reference
+        # Only create one instance
+        if self.dlg is None:
+            self.dlg = MoveLayersToGPKGDialog(parent=self.iface.mainWindow())
 
-    def rename_selected_layer(self):
-        """Renames the currently selected layer to its parent group name.
+        # Show the dialog
+        self.dlg.show()
+
+    def rename_selected_layer(self) -> None:
+        """Rename the currently selected layer to its parent group name.
         This method is called when the user clicks the plugin action.
         """
-        layer = self.iface.activeLayer()  # Get the currently selected layer
+        layer: QgsMapLayer | None = (
+            self.iface.activeLayer()
+        )  # Get the currently selected layer
         if layer is None:
             self.iface.messageBar().pushMessage(
                 "Warning", "No layer selected.", level=Qgis.Warning
@@ -172,13 +180,19 @@ class MoveLayersToGPKG:
         if layer_tree_node:
             parent_group = layer_tree_node.parent()
             if isinstance(parent_group, QgsLayerTreeGroup):
-                group_name = parent_group.name()
-                current_layer_name = layer.name()
-                new_layer_name = group_name
+                group_name: str = parent_group.name()
+                current_layer_name: str = layer.name()
+
+                # Fix for encoding issues (mojibake) where UTF-8 characters are
+                # incorrectly decoded as a single-byte encoding like latin-1.
+                # This re-encodes the string to bytes and then decodes it correctly.
+                new_layer_name: str = group_name.encode("latin-1").decode(
+                    "utf-8", "ignore"
+                )
                 layer.setName(new_layer_name)
                 self.iface.messageBar().pushMessage(
                     "Info",
-                    f"Layer '{current_layer_name}' renamed to '{new_layer_name}' (Group: '{group_name}').",
+                    f"Layer '{current_layer_name}' renamed to '{new_layer_name}'.",
                     level=Qgis.Info,
                 )
             else:

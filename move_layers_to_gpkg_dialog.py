@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """/***************************************************************************
  MoveLayersToGPKGDialog
                                  A QGIS plugin
@@ -23,22 +22,28 @@
 
 import os
 
-from qgis.PyQt import uic
-from qgis.PyQt import QtWidgets
+from qgis.core import QgsLayerTreeModel, QgsProject
+from qgis.PyQt import QtWidgets, uic
 
-# This loads your .ui file so that PyQt can populate your plugin with the elements from Qt Designer
+# This loads your .ui file so that PyQt can populate
+# your plugin with the elements from Qt Designer
 FORM_CLASS, _ = uic.loadUiType(
     os.path.join(os.path.dirname(__file__), "move_layers_to_gpkg_dialog_base.ui")
 )
 
 
 class MoveLayersToGPKGDialog(QtWidgets.QDialog, FORM_CLASS):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None) -> None:
         """Constructor."""
-        super(MoveLayersToGPKGDialog, self).__init__(parent)
+        super().__init__(parent)
         # Set up the user interface from Designer through FORM_CLASS.
         # After self.setupUi() you can access any designer object by doing
         # self.<objectname>, and you can use autoconnect slots - see
         # http://qt-project.org/doc/qt-4.8/designer-using-a-ui-file.html
         # #widgets-and-dialogs-with-auto-connect
         self.setupUi(self)
+
+        # Set up the layer tree view model. The QgsLayerTreeView widget itself
+        # is now created directly from the .ui file.
+        self.layer_tree_model = QgsLayerTreeModel(QgsProject.instance().layerTreeRoot())
+        self.Layer_Tree_FL.setModel(self.layer_tree_model)

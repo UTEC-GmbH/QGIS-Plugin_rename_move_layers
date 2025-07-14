@@ -12,6 +12,9 @@ What's Next:
     directory
 
   * Compile the resources file using pyrcc5
+	→ use the OSGeo4W Shell that was installed with QGIS
+	→ cd c:\Users\fl\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins\QGIS_plugin_move_layers_to_gpkg
+	→ pyrcc5 -o resources.py resources.qrc
 
   * Run the tests (``make test``)
 
