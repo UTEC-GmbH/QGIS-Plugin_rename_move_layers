@@ -26,8 +26,7 @@
 from pathlib import Path
 from typing import Callable
 
-from qgis._core import QgsMapLayer
-from qgis.core import Qgis, QgsLayerTreeGroup, QgsProject
+from qgis.core import Qgis, QgsLayerTreeGroup, QgsMapLayer, QgsProject
 from qgis.gui import QgisInterface
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
@@ -128,7 +127,7 @@ class RenameAndMoveLayersToGPKG:
 
         return action
 
-    def initGui(self) -> None:
+    def initGui(self) -> None:  # noqa: N802
         """Set up GUI and connect signals.
 
         Called when the plugin is loaded according to the plugin QGIS metadata.

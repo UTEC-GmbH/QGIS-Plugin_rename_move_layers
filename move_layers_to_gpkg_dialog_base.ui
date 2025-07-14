@@ -29,7 +29,7 @@
     <set>QDialogButtonBox::Close</set>
    </property>
   </widget>
-  <widget class="QQuickWidget" name="Layer_Tree_FL">
+  <widget class="QgsLayerTreeView" name="Layer_Tree_FL">
    <property name="geometry">
     <rect>
      <x>20</x>
@@ -37,9 +37,6 @@
      <width>461</width>
      <height>321</height>
     </rect>
-   </property>
-   <property name="resizeMode">
-    <enum>QQuickWidget::SizeRootObjectToView</enum>
    </property>
   </widget>
   <widget class="QPushButton" name="rename_Button_FL">
@@ -84,9 +81,9 @@
  </widget>
  <customwidgets>
   <customwidget>
-   <class>QQuickWidget</class>
+   <class>QgsLayerTreeView</class>
    <extends>QWidget</extends>
-   <header location="global">QtQuickWidgets/QQuickWidget</header>
+   <header>qgis.gui</header>
   </customwidget>
  </customwidgets>
  <resources/>

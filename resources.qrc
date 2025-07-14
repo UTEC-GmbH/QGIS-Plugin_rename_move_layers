@@ -1,5 +1,5 @@
 <RCC>
-    <qresource prefix="/plugins/move_layers_to_gpkg" >
+    <qresource prefix="/plugins/QGIS_plugin_move_layers_to_gpkg" >
         <file>icon.png</file>
     </qresource>
 </RCC>
