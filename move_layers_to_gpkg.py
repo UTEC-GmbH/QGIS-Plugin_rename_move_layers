@@ -26,7 +26,13 @@
 from pathlib import Path
 from typing import Callable
 
-from qgis.core import Qgis, QgsLayerTreeGroup, QgsMapLayer, QgsProject
+from qgis.core import (
+    Qgis,
+    QgsLayerTreeGroup,
+    QgsLayerTreeLayer,
+    QgsMapLayer,
+    QgsProject,
+)
 from qgis.gui import QgisInterface
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
@@ -61,7 +67,7 @@ class RenameAndMoveLayersToGPKG:
         add_to_toolbar: bool = True,
         status_tip: str | None = None,
         whats_this: str | None = None,
-        parent: None = None,
+        parent=None,
     ) -> QAction:
         """Add a toolbar icon to the toolbar.
 
@@ -158,50 +164,101 @@ class RenameAndMoveLayersToGPKG:
         # Create the dialog with elements (after translation) and keep reference
         # Only create one instance
         if self.dlg is None:
-            self.dlg = MoveLayersToGPKGDialog(parent=self.iface.mainWindow())
+            self.dlg = MoveLayersToGPKGDialog(
+                plugin=self, parent=self.iface.mainWindow()
+            )
 
         # Show the dialog
         self.dlg.show()
 
-    def rename_selected_layer(self) -> None:
-        """Rename the currently selected layer to its parent group name.
-        This method is called when the user clicks the plugin action.
+    def get_selected_layers(self) -> list[QgsMapLayer]:
+        """Collect all layers selected in the plugin UI.
+
+        :returns: A list of selected QgsMapLayer objects.
         """
-        layer: QgsMapLayer | None = (
-            self.iface.activeLayer()
-        )  # Get the currently selected layer
-        if layer is None:
+        selected_layers = set()
+        selected_nodes = self.dlg.Layer_Tree_FL.selectedNodes()
+
+        for node in selected_nodes:
+            if isinstance(node, QgsLayerTreeGroup):
+                # If a group is selected, add all its layers recursively.
+                for layer_node in node.findLayers():
+                    selected_layers.add(layer_node.layer())
+            elif isinstance(node, QgsLayerTreeLayer):
+                # Add the single selected layer.
+                selected_layers.add(node.layer())
+
+        return list(selected_layers)
+
+    def rename_selected_layers(self) -> None:
+        """Rename the selected layers to their parent group names.
+
+        Process all selected layers and provides a single summary message at the end.
+        """
+        layers_to_process = self.get_selected_layers()
+        if not layers_to_process:
             self.iface.messageBar().pushMessage(
-                "Warning", "No layer selected.", level=Qgis.Warning
+                "Warning", "No layers or groups selected.", level=Qgis.Warning
             )
             return
 
-        layer_tree_node = QgsProject.instance().layerTreeRoot().findLayer(layer.id())
-        if layer_tree_node:
-            parent_group = layer_tree_node.parent()
-            if isinstance(parent_group, QgsLayerTreeGroup):
-                group_name: str = parent_group.name()
-                current_layer_name: str = layer.name()
+        # --- 1. Gather information and plan actions ---
+        rename_plan = []  # List of (layer, old_name, new_name)
+        skipped_layers = []  # List of layer names that are not in a group
+        error_layers = []  # List of layer names that could not be found
+
+        root = QgsProject.instance().layerTreeRoot()
+
+        for layer in layers_to_process:
+            node = root.findLayer(layer.id())
+            if not node:
+                error_layers.append(layer.name())
+                continue
+
+            parent = node.parent()
+            if isinstance(parent, QgsLayerTreeGroup):
+                group_name = parent.name()
+                current_name = layer.name()
 
                 # Fix for encoding issues (mojibake) where UTF-8 characters are
                 # incorrectly decoded as a single-byte encoding like latin-1.
                 # This re-encodes the string to bytes and then decodes it correctly.
-                new_layer_name: str = group_name.encode("latin-1").decode(
-                    "utf-8", "ignore"
-                )
-                layer.setName(new_layer_name)
-                self.iface.messageBar().pushMessage(
-                    "Info",
-                    f"Layer '{current_layer_name}' renamed to '{new_layer_name}'.",
-                    level=Qgis.Info,
-                )
+                new_name = group_name.encode("latin-1").decode("utf-8", "ignore")
+
+                if current_name != new_name:
+                    rename_plan.append((layer, current_name, new_name))
             else:
-                self.iface.messageBar().pushMessage(
-                    "Warning",
-                    "Selected layer is not within a group.",
-                    level=Qgis.Warning,
-                )
-        else:
+                skipped_layers.append(layer.name())
+
+        # --- 2. Execute actions ---
+        for layer, _, new_name in rename_plan:
+            layer.setName(new_name)
+
+        # --- 3. Report summary ---
+        if not any([rename_plan, skipped_layers, error_layers]):
             self.iface.messageBar().pushMessage(
-                "Error", "Could not find layer in layer tree.", level=Qgis.Critical
+                "Info",
+                "All selected layers already have the correct names.",
+                level=Qgis.Info,
+                duration=5,
             )
+            return
+
+        message_parts = []
+        level = Qgis.Success
+        if rename_plan:
+            message_parts.append(f"Renamed {len(rename_plan)} layer(s).")
+        if skipped_layers:
+            message_parts.append(
+                f"Skipped {len(skipped_layers)} layer(s) not in a group."
+            )
+            level = Qgis.Warning
+        if error_layers:
+            message_parts.append(
+                f"Could not find {len(error_layers)} layer(s) in the layer tree."
+            )
+            level = Qgis.Critical
+
+        self.iface.messageBar().pushMessage(
+            "Rename Complete", " ".join(message_parts), level=level, duration=10
+        )
