@@ -29,7 +29,7 @@
     <set>QDialogButtonBox::Close</set>
    </property>
   </widget>
-  <widget class="QgsLayerTreeView" name="Layer_Tree_FL">
+  <widget class="QWidget" name="layoutWidget">
    <property name="geometry">
     <rect>
      <x>20</x>
@@ -38,8 +38,13 @@
      <height>321</height>
     </rect>
    </property>
-  </widget>
-  <widget class="QPushButton" name="rename_Button_FL">
+   <layout class="QVBoxLayout" name="verticalLayout">
+    <item>
+      <widget class="QTreeView" name="Layer_Tree_FL"/>
+    </item>
+   </layout>
+  </widget>  
+ <widget class="QPushButton" name="rename_Button_FL">
    <property name="geometry">
     <rect>
      <x>20</x>
@@ -79,13 +84,6 @@
    </property>
   </widget>
  </widget>
- <customwidgets>
-  <customwidget>
-   <class>QgsLayerTreeView</class>
-   <extends>QWidget</extends>
-   <header>qgis.gui</header>
-  </customwidget>
- </customwidgets>
  <resources/>
  <connections>
   <connection>

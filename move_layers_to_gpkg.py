@@ -123,7 +123,6 @@ class RenameAndMoveLayersToGPKG:
             action.setWhatsThis(whats_this)
 
         if add_to_toolbar:
-            # TODO: parent parameter of addAction is expected to be 'QToolBar'
             self.iface.addToolBarIcon(action)
 
         if add_to_menu:
@@ -139,7 +138,6 @@ class RenameAndMoveLayersToGPKG:
         Called when the plugin is loaded according to the plugin QGIS metadata.
         """
 
-        # Create action that will start plugin configuration
         self.add_action(
             self.icon_path,
             text=self.menu,
@@ -161,8 +159,7 @@ class RenameAndMoveLayersToGPKG:
 
     def run(self) -> None:
         """Run method that opens the plugin dialog."""
-        # Create the dialog with elements (after translation) and keep reference
-        # Only create one instance
+
         if self.dlg is None:
             self.dlg = MoveLayersToGPKGDialog(
                 plugin=self, parent=self.iface.mainWindow()
