@@ -8,7 +8,8 @@ Your QGIS plugin directory is located at:
 
 What's Next:
 
-  * Copy the entire directory containing your new plugin to the QGIS Plugin Directory ++
+  * Copy the entire directory containing your new plugin to the QGIS Plugin Directory 
+  -> or create a symbolic link (see below ++)
 
   * Compile the resources file using pyrcc5
 	→ use the OSGeo4W Shell that was installed with QGIS
@@ -41,7 +42,6 @@ Open Command Prompt as an Administrator.
 
 Create the symbolic link using the mklink /D command. The format is mklink /D <Link_Path> <Target_Path>.
 
-cmd
 mklink /D "C:\Users\**user name**\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins\**Plugin name**" "C:\dev\**Plugin name**"
 
 Now, Windows treats the link in the plugins directory as if it were the actual folder from your C:\dev\ directory. You can edit your code in C:\dev\, and QGIS will see the changes instantly, ready for you to use Plugin Reloader.

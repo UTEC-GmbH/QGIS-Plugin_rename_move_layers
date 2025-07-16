@@ -37,8 +37,6 @@ from qgis.gui import QgisInterface
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
 
-from . import resources  # noqa: F401
-
 
 class RenameAndMoveLayersToGPKG:
     """QGIS Plugin for renaming and moving layers to a GeoPackage."""
@@ -54,7 +52,7 @@ class RenameAndMoveLayersToGPKG:
         self.actions: list = []
         self.menu: str = "Move Layers to GeoPackage"
         self.dlg = None
-        self.icon_path = ":/plugins/QGIS_plugin_move_layers_to_gpkg/icon.png"
+        self.icon_path = ":/plugins/rename_move_layers/icon.png"
 
     def add_action(
         self,
@@ -153,7 +151,7 @@ class RenameAndMoveLayersToGPKG:
         """
         # Remove toolbar actions and menu items
         for action in self.actions:
-            self.iface.removePluginMenu("Move Layers to GeoPackage", action)
+            self.iface.removePluginMenu("Rename and Move Layers", action)
             self.iface.removeToolBarIcon(action)
 
     def get_selected_layers(self) -> list[QgsMapLayer]:

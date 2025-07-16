@@ -38,15 +38,15 @@ LOCALES =
 # translation
 SOURCES = \
 	__init__.py \
-	move_layers_to_gpkg.py move_layers_to_gpkg_dialog.py
+	rename_move_layers.py
 
 PLUGINNAME = move_layers_to_gpkg
 
 PY_FILES = \
 	__init__.py \
-	move_layers_to_gpkg.py move_layers_to_gpkg_dialog.py
+	rename_move_layers.py
 
-UI_FILES = move_layers_to_gpkg_dialog_base.ui
+
 
 EXTRAS = metadata.txt icon.png
 
