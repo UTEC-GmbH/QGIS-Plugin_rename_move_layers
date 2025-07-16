@@ -26,22 +26,15 @@
 from pathlib import Path
 from typing import Callable
 
-from qgis.core import (
-    Qgis,
-    QgsLayerTreeGroup,
-    QgsLayerTreeLayer,
-    QgsMapLayer,
-    QgsProject,
-)
 from qgis.gui import QgisInterface
 from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtWidgets import QAction
+from qgis.PyQt.QtWidgets import QAction, QMenu, QToolButton
 
-from . import resources  # noqa: F401
-from .move_layers_to_gpkg_dialog import MoveLayersToGPKGDialog
+from . import resources  # noqa: F401 - Import is necessary to load resources
+from .functions import rename_layers
 
 
-class RenameAndMoveLayersToGPKG:
+class RenameAndMoveLayersToGPKG:  # pylint: disable=invalid-name
     """QGIS Plugin for renaming and moving layers to a GeoPackage."""
 
     def __init__(self, iface: QgisInterface) -> None:
@@ -53,9 +46,11 @@ class RenameAndMoveLayersToGPKG:
         self.iface: QgisInterface = iface
         self.plugin_dir: Path = Path(__file__).parent
         self.actions: list = []
-        self.menu: str = "Move Layers to GeoPackage"
+        # Using a shorter name for the menu for a cleaner look
+        self.menu: str = "Layer Tools"
+        self.plugin_menu: QMenu | None = None
         self.dlg = None
-        self.icon_path = ":/plugins/QGIS_plugin_move_layers_to_gpkg/icon.png"
+        self.icon_path = ":/plugins/rename_move_layers/icon.png"
 
     def add_action(
         self,
@@ -133,129 +128,54 @@ class RenameAndMoveLayersToGPKG:
         return action
 
     def initGui(self) -> None:  # noqa: N802
-        """Set up GUI and connect signals.
+        """Create the menu entries and toolbar icons for the plugin."""
+        # Create a menu for the plugin in the "Plugins" menu
+        self.plugin_menu = QMenu(self.menu, self.iface.pluginMenu())
+        self.plugin_menu.setIcon(QIcon(self.icon_path))
 
-        Called when the plugin is loaded according to the plugin QGIS metadata.
-        """
-
-        self.add_action(
+        # Add an action for renaming layers
+        rename_action = self.add_action(
             self.icon_path,
-            text=self.menu,
-            callback=self.run,
+            text="Rename Layers by Group",
+            callback=self.rename_selected_layers,
             parent=self.iface.mainWindow(),
-            status_tip=f"Open the {self.menu} dialog",
-            whats_this=f"This opens the {self.menu} dialog.",
+            add_to_menu=False,  # Will be added to our custom menu
+            add_to_toolbar=False,  # Avoid creating a separate toolbar button
+            status_tip="Rename selected layers to their parent group names",
+            whats_this="Renames selected layers to match their parent group's name.",
         )
+        self.plugin_menu.addAction(rename_action)
+
+        # Add the fly-out menu to the main "Plugins" menu
+        self.iface.pluginMenu().addMenu(self.plugin_menu)
+
+        # Add a toolbutton to the toolbar to show the flyout menu
+        toolbar_button = QToolButton()
+        toolbar_button.setMenu(self.plugin_menu)
+        toolbar_button.setDefaultAction(rename_action)  # Use an action's icon
+        toolbar_button.setPopupMode(QToolButton.InstantPopup)
+        self.iface.addToolBarWidget(toolbar_button)
+        self.actions.append(toolbar_button)  # Keep track of it for removal
 
     def unload(self) -> None:
         """Plugin unload method.
 
         Called when the plugin is unloaded according to the plugin QGIS metadata.
         """
-        # Remove toolbar actions and menu items
+        # Remove toolbar icons for all actions
         for action in self.actions:
-            self.iface.removePluginMenu("Move Layers to GeoPackage", action)
-            self.iface.removeToolBarIcon(action)
+            if isinstance(action, (QAction, QToolButton)):
+                self.iface.removeToolBarIcon(action)
 
-    def run(self) -> None:
-        """Run method that opens the plugin dialog."""
+        # Remove the plugin menu from the "Plugins" menu.
+        # Remove the menu, which will automatically remove its actions.
+        if self.plugin_menu:
+            self.iface.pluginMenu().removeAction(self.plugin_menu.menuAction())
 
-        if self.dlg is None:
-            self.dlg = MoveLayersToGPKGDialog(
-                plugin=self, parent=self.iface.mainWindow()
-            )
-
-        # Show the dialog
-        self.dlg.show()
-
-    def get_selected_layers(self) -> list[QgsMapLayer]:
-        """Collect all layers selected in the plugin UI.
-
-        :returns: A list of selected QgsMapLayer objects.
-        """
-        selected_layers = set()
-        selected_nodes = self.dlg.Layer_Tree_FL.selectedNodes()
-
-        for node in selected_nodes:
-            if isinstance(node, QgsLayerTreeGroup):
-                # If a group is selected, add all its layers recursively.
-                for layer_node in node.findLayers():
-                    selected_layers.add(layer_node.layer())
-            elif isinstance(node, QgsLayerTreeLayer):
-                # Add the single selected layer.
-                selected_layers.add(node.layer())
-
-        return list(selected_layers)
+        self.actions.clear()
+        self.plugin_menu = None
 
     def rename_selected_layers(self) -> None:
-        """Rename the selected layers to their parent group names.
+        """Call rename function from 'functions.py'."""
 
-        Process all selected layers and provides a single summary message at the end.
-        """
-        layers_to_process = self.get_selected_layers()
-        if not layers_to_process:
-            self.iface.messageBar().pushMessage(
-                "Warning", "No layers or groups selected.", level=Qgis.Warning
-            )
-            return
-
-        # --- 1. Gather information and plan actions ---
-        rename_plan = []  # List of (layer, old_name, new_name)
-        skipped_layers = []  # List of layer names that are not in a group
-        error_layers = []  # List of layer names that could not be found
-
-        root = QgsProject.instance().layerTreeRoot()
-
-        for layer in layers_to_process:
-            node = root.findLayer(layer.id())
-            if not node:
-                error_layers.append(layer.name())
-                continue
-
-            parent = node.parent()
-            if isinstance(parent, QgsLayerTreeGroup):
-                group_name = parent.name()
-                current_name = layer.name()
-
-                # Fix for encoding issues (mojibake) where UTF-8 characters are
-                # incorrectly decoded as a single-byte encoding like latin-1.
-                # This re-encodes the string to bytes and then decodes it correctly.
-                new_name = group_name.encode("latin-1").decode("utf-8", "ignore")
-
-                if current_name != new_name:
-                    rename_plan.append((layer, current_name, new_name))
-            else:
-                skipped_layers.append(layer.name())
-
-        # --- 2. Execute actions ---
-        for layer, _, new_name in rename_plan:
-            layer.setName(new_name)
-
-        # --- 3. Report summary ---
-        if not any([rename_plan, skipped_layers, error_layers]):
-            self.iface.messageBar().pushMessage(
-                "Info",
-                "All selected layers already have the correct names.",
-                level=Qgis.Info,
-                duration=5,
-            )
-            return
-
-        message_parts = []
-        level = Qgis.Success
-        if rename_plan:
-            message_parts.append(f"Renamed {len(rename_plan)} layer(s).")
-        if skipped_layers:
-            message_parts.append(
-                f"Skipped {len(skipped_layers)} layer(s) not in a group."
-            )
-            level = Qgis.Warning
-        if error_layers:
-            message_parts.append(
-                f"Could not find {len(error_layers)} layer(s) in the layer tree."
-            )
-            level = Qgis.Critical
-
-        self.iface.messageBar().pushMessage(
-            "Rename Complete", " ".join(message_parts), level=level, duration=10
-        )
+        rename_layers(self)
