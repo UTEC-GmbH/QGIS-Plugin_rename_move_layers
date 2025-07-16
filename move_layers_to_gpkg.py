@@ -38,7 +38,6 @@ from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
 
 from . import resources  # noqa: F401
-from .move_layers_to_gpkg_dialog import MoveLayersToGPKGDialog
 
 
 class RenameAndMoveLayersToGPKG:
@@ -140,11 +139,11 @@ class RenameAndMoveLayersToGPKG:
 
         self.add_action(
             self.icon_path,
-            text=self.menu,
-            callback=self.run,
+            text="Rename Selected Layers according to Group Names",
+            callback=self.rename_selected_layers,
             parent=self.iface.mainWindow(),
-            status_tip=f"Open the {self.menu} dialog",
-            whats_this=f"This opens the {self.menu} dialog.",
+            status_tip="Rename selected layers to their parent group names",
+            whats_this="Renames selected layers to match their parent group's name.",
         )
 
     def unload(self) -> None:
@@ -157,24 +156,13 @@ class RenameAndMoveLayersToGPKG:
             self.iface.removePluginMenu("Move Layers to GeoPackage", action)
             self.iface.removeToolBarIcon(action)
 
-    def run(self) -> None:
-        """Run method that opens the plugin dialog."""
-
-        if self.dlg is None:
-            self.dlg = MoveLayersToGPKGDialog(
-                plugin=self, parent=self.iface.mainWindow()
-            )
-
-        # Show the dialog
-        self.dlg.show()
-
     def get_selected_layers(self) -> list[QgsMapLayer]:
-        """Collect all layers selected in the plugin UI.
+        """Collect all layers selected in the QGIS layer tree view.
 
         :returns: A list of selected QgsMapLayer objects.
         """
         selected_layers = set()
-        selected_nodes = self.dlg.Layer_Tree_FL.selectedNodes()
+        selected_nodes = self.iface.layerTreeView().selectedNodes()
 
         for node in selected_nodes:
             if isinstance(node, QgsLayerTreeGroup):
