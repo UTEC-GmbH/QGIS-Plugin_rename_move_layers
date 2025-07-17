@@ -8,8 +8,30 @@ from qgis.core import (
     QgsLayerTreeGroup,
     QgsLayerTreeLayer,
     QgsMapLayer,
+    QgsProject,
 )
 from qgis.gui import QgisInterface
+
+
+def check_project(plugin: QgisInterface) -> QgsProject:
+    """Check if a QGIS project is currently open and returns the project instance.
+
+    If no project is open, displays an error message using the provided QGIS
+    interface plugin.
+
+    Args:
+    plugin (QgisInterface): The QGIS interface plugin used to display messages.
+
+    Returns:
+    QgsProject | None: The current QGIS project instance if open, otherwise None.
+    """
+    project: QgsProject | None = QgsProject.instance()
+    if project is None:
+        error_msg: str = "No QGIS project is currently open."
+        plugin.iface.messageBar().pushMessage("Error", error_msg, level=Qgis.Critical)
+        raise RuntimeError(error_msg)
+
+    return project
 
 
 def get_selected_layers(plugin: QgisInterface) -> list[QgsMapLayer]:
@@ -19,6 +41,11 @@ def get_selected_layers(plugin: QgisInterface) -> list[QgsMapLayer]:
     """
     selected_layers: set[QgsMapLayer] = set()
     selected_nodes = plugin.iface.layerTreeView().selectedNodes()
+
+    if not selected_nodes:
+        error_msg: str = "No layers or groups selected."
+        plugin.iface.messageBar().pushMessage("Warning", error_msg, level=Qgis.Warning)
+        raise RuntimeError(error_msg)
 
     for node in selected_nodes:
         if isinstance(node, QgsLayerTreeGroup):

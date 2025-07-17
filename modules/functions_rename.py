@@ -17,7 +17,7 @@ from qgis.core import (
 )
 from qgis.gui import QgisInterface
 
-from .functions_general import get_selected_layers, report_summary
+from .functions_general import check_project, get_selected_layers, report_summary
 
 if TYPE_CHECKING:
     from qgis._core import QgsLayerTree, QgsLayerTreeNode
@@ -42,36 +42,25 @@ def fix_layer_name(name: str) -> str:
     return re.sub(r'[<>:"/\\|?*]+', "_", fixed_name)
 
 
-def prepare_rename_plan(plugin: QgisInterface) -> tuple[list, list, list, list] | None:
+def prepare_rename_plan(plugin: QgisInterface) -> tuple[list, list, list, list]:
     """Rename the selected layers to their parent group names.
 
     Process all selected layers and provides a single summary message at the end.
     """
     layers_to_process: list[QgsMapLayer] = get_selected_layers(plugin)
-    if not layers_to_process:
-        plugin.iface.messageBar().pushMessage(
-            "Warning", "No layers or groups selected.", level=Qgis.Warning
-        )
-        return None
 
     rename_plan: list = []  # List of (layer, old_name, new_name)
     failed_renames: list = []  # List of layer names that could not be renamed
     skipped_layers: list[str] = []  # List of layer names that are not in a group
     error_layers: list[str] = []  # List of layer names that could not be found
 
-    project: QgsProject | None = QgsProject.instance()
-    if project is None:
-        plugin.iface.messageBar().pushMessage(
-            "Error", "No QGIS project is currently open.", level=Qgis.Critical
-        )
-        return None
+    project: QgsProject = check_project(plugin)
 
     root: QgsLayerTree | None = project.layerTreeRoot()
     if root is None:
-        plugin.iface.messageBar().pushMessage(
-            "Error", "No Layer Tree is available.", level=Qgis.Critical
-        )
-        return None
+        error_msg: str = "No Layer Tree is available."
+        plugin.iface.messageBar().pushMessage("Error", error_msg, level=Qgis.Critical)
+        raise RuntimeError(error_msg)
 
     for layer in layers_to_process:
         node: QgsLayerTreeLayer = root.findLayer(layer.id())
