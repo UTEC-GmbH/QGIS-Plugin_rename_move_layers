@@ -7,16 +7,21 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from osgeo import ogr
-from qgis._core import QgsLayerTree
 from qgis.core import (
     Qgis,
+    QgsLayerTree,
     QgsProject,
     QgsVectorFileWriter,
     QgsVectorLayer,
 )
 from qgis.gui import QgisInterface
 
-from .functions_general import get_current_project, get_selected_layers
+from .functions_general import (
+    display_summary_message,
+    generate_summary_message,
+    get_current_project,
+    get_selected_layers,
+)
 
 if TYPE_CHECKING:
     from qgis.core import QgsMapLayer
@@ -86,19 +91,13 @@ def add_layers_to_gpkg(plugin: QgisInterface) -> None:
             else:
                 results["failures"].append((layer.name(), error[1]))
 
-    if results["successes"] > 0:
-        plugin.iface.messageBar().pushMessage(
-            "Success",
-            f"Copied {results['successes']} layers to GeoPackage.",
-            level=Qgis.Success,
-        )
-    if results["failures"]:
-        for layer_name, error_msg in results["failures"]:
-            plugin.iface.messageBar().pushMessage(
-                "Error",
-                f"Failed to copy layer '{layer_name}': {error_msg}",
-                level=Qgis.Critical,
-            )
+    message, level = generate_summary_message(
+        successes=results["successes"],
+        failures=results["failures"],
+        action="Moved",
+    )
+
+    display_summary_message(plugin, message, level)
 
 
 def add_layers_from_gpkg_to_project(plugin: QgisInterface) -> None:
@@ -130,8 +129,8 @@ def add_layers_from_gpkg_to_project(plugin: QgisInterface) -> None:
             continue
 
         # Add the layer to the project registry first, but not the legend
-        project.addMapLayer(gpkg_layer, False)
-        # Then, insert it at the top of the layer tree
+        project.addMapLayer(gpkg_layer, addToLegend=False)
+        # Then, insert it at the top of the layer tree (legend)
         root.insertLayer(0, gpkg_layer)
         added_layers.append(layer_name)
 
@@ -143,11 +142,12 @@ def add_layers_from_gpkg_to_project(plugin: QgisInterface) -> None:
             level=Qgis.Success,
         )
     if not_found_layers:
-        plural_s = "s" if len(not_found_layers) > 1 else ""
+        count: int = len(not_found_layers)
+        plural_s = "s" if count > 1 else ""
         layer_list: str = ", ".join(not_found_layers)
         plugin.iface.messageBar().pushMessage(
             "Warning",
-            f"Could not find {len(not_found_layers)} layer{plural_s} in GeoPackage: {layer_list}",
+            f"Could not find {count} layer{plural_s} in GeoPackage: {layer_list}",
             level=Qgis.Warning,
         )
 

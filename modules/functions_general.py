@@ -59,87 +59,74 @@ def get_selected_layers(plugin: QgisInterface) -> list[QgsMapLayer]:
     return list(selected_layers)
 
 
-def report_summary(
-    plugin: QgisInterface,
-    rename_plan: list,
-    skipped_layers: list,
-    failed_renames: list,
-    error_layers: list,
-) -> None:
-    """Report a summary of the rename operation to the user.
+def generate_summary_message(
+    successes: int = 0,
+    skipped: list | None = None,
+    failures: list | None = None,
+    not_found: list | None = None,
+    action: str = "Operation",
+) -> tuple[str, int]:
+    """Generate a summary message for the user based on operation results.
 
-    This function consolidates the results of the rename operation,
-    including successful renames, skipped layers, failures, and errors.
-    It generates a user-friendly summary message and displays it via the
-    QGIS message bar.
+    This function constructs a user-friendly message summarizing the outcome
+    of a plugin operation (e.g., renaming, moving layers). It handles different
+    result types (successes, skips, failures, not found) and pluralization
+    to create grammatically correct and informative feedback.
 
     :param plugin: The QGIS plugin interface for interacting with QGIS.
-    :param rename_plan: A list of successful rename operations.
-    :param skipped_layers: A list of layer names that were skipped because
-                           they were not in a group.
-    :param failed_renames: A list of tuples, each detailing a failed rename
-                           operation in the format
-                           (old_name, new_name, error_message).
-    :param error_layers: A list of layer names that could not be found in
-                         the layer tree.
-    :returns: None. Displays a summary message in the QGIS message bar.
+    :param successes: The number of successful operations.
+    :param skipped: A list of layer names that were skipped.
+    :param failures: A list of tuples detailing failed operations,
+                     (e.g., (old_name, new_name, error_message)).
+    :param not_found: A list of layer names that could not be found.
+    :param action: A string describing the action performed (e.g., "Renamed", "Moved").
+    :returns: A tuple containing the summary message (str) and the message level (int).
     """
-
-    if not rename_plan and not error_layers:
-        plugin.iface.messageBar().pushMessage(
-            "Info",
-            "All selected layers already have the correct names.",
-            level=Qgis.Info,
-            duration=5,
-        )
-        return
-
     message_parts: list[str] = []
-    level = Qgis.Success
-    if rename_plan:
-        append_message_parts(rename_plan, message_parts, "Renamed ", ".")
-    if skipped_layers:
-        append_message_parts(
-            skipped_layers,
-            message_parts,
-            "Skipped ",
-            " that are not in a group.",
+    message_level: int = Qgis.Success
+    plural: str = ""
+
+    if successes:
+        plural = "s" if successes > 1 else ""
+        message_parts.append(f"{action} {successes} layer{plural}.")
+
+    if skipped:
+        plural = "s" if len(skipped) > 1 else ""
+        message_parts.append(f"Skipped {len(skipped)} layer{plural}.")
+        message_level = Qgis.Warning
+
+    if failures:
+        plural = "s" if len(failures) > 1 else ""
+        message_parts.append(
+            f"Could not {action.lower()} {len(failures)} layer{plural}."
         )
-        level = Qgis.Warning
-    if failed_renames:
-        append_message_parts(failed_renames, message_parts, "Could not rename ", ".")
-        level = Qgis.Warning
-    if error_layers:
-        append_message_parts(
-            error_layers,
-            message_parts,
-            "Could not find ",
-            " in the layer tree.",
+        message_level = Qgis.Warning
+
+    if not_found:
+        plural = "s" if len(not_found) > 1 else ""
+        message_parts.append(f"Could not find {len(not_found)} layer{plural}.")
+        message_level = Qgis.Critical
+
+    if not message_parts:  # If no operations were reported
+        message_parts.append(
+            "No layers processed or all selected layers already have the desired state."
         )
-        level = Qgis.Critical
+        message_level = Qgis.Info
 
-    plugin.iface.messageBar().pushMessage(
-        "Rename Complete", " ".join(message_parts), level=level, duration=10
-    )
+    return " ".join(message_parts), message_level
 
 
-def append_message_parts(
-    layer_list: list, message_parts: list, before: str, after: str
-) -> None:
-    """Append a message part to the message parts list.
+def display_summary_message(plugin: QgisInterface, message: str, level: int) -> None:
+    """Display a summary message in the QGIS message bar.
 
-    This function creates a user-friendly message string based on the number
-    of items in `layer_list` and appends it to `message_parts`. It handles
-    pluralization and formats the message with provided prefixes and suffixes.
+    This function takes a message and a message level and displays them in the
+    QGIS message bar using the provided plugin interface.
 
-    :param layer_list: A list of items (e.g., layer names or tuples of rename operations).
-                       The length of this list determines the quantity mentioned in the message.
-    :param message_parts: A list that accumulates the parts of the overall message.
-                          The new part will be appended to this list.
-    :param before: The string to prepend to the count of items (e.g., "Renamed ").
-    :param after: The string to append after the item count and optional pluralization suffix (e.g., " layers.").
-    :returns: None. Modifies `message_parts` in place.
+    :param plugin: The QGIS plugin interface for interacting with QGIS.
+    :param message: The message string to display.
+    :param level: The message level (e.g., Qgis.Success, Qgis.Warning, Qgis.Critical).
+    :returns: None. Displays a message in the QGIS message bar.
     """
-    rename_count: int = len(layer_list)
-    plural_suffix: str = "s" if rename_count != 1 else ""
-    message_parts.append(f"{before}{rename_count} layer{plural_suffix}{after}")
+    plugin.iface.messageBar().pushMessage(
+        "Operation Summary", message, level=level, duration=10
+    )

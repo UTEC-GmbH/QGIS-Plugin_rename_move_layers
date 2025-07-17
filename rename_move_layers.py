@@ -57,18 +57,18 @@ class RenameAndMoveLayersToGPKG:
         self.dlg = None
         self.icon_path = ":/plugins/rename_move_layers/icon.png"
 
-    def add_action(
+    def add_action(  # noqa: PLR0913 # pylint: disable=too-many-arguments,too-many-positional-arguments
         self,
         icon_path: str,
         text: str,
         callback: Callable,
-        enabled_flag: bool = True,
-        add_to_menu: bool = True,
-        add_to_toolbar: bool = True,
+        enabled_flag: bool = True,  # noqa: FBT001, FBT002
+        add_to_menu: bool = True,  # noqa: FBT001, FBT002
+        add_to_toolbar: bool = True,  # noqa: FBT001, FBT002
         status_tip: str | None = None,
         whats_this: str | None = None,
-        parent=None,
-    ) -> QAction:
+        parent=None,  # noqa: ANN001
+    ) -> QAction:  # type: ignore[]
         """Add a toolbar icon to the toolbar.
 
         :param icon_path: Path to the icon for this action. Can be a resource
@@ -136,6 +136,10 @@ class RenameAndMoveLayersToGPKG:
         """Create the menu entries and toolbar icons for the plugin."""
         # Create a menu for the plugin in the "Plugins" menu
         self.plugin_menu = QMenu(self.menu, self.iface.pluginMenu())
+        if self.plugin_menu is None:
+            error_msg: str = "Failed to create the plugin menu."
+            raise RuntimeError(error_msg)
+
         self.plugin_menu.setIcon(QIcon(self.icon_path))
 
         # Add an action for renaming layers
@@ -185,7 +189,7 @@ class RenameAndMoveLayersToGPKG:
         self.plugin_menu.addAction(rename_move_action)
 
         # Add the fly-out menu to the main "Plugins" menu
-        self.iface.pluginMenu().addMenu(self.plugin_menu)
+        self.iface.pluginMenu().addMenu(self.plugin_menu)  # type: ignore[]
         # Add a toolbutton to the toolbar to show the flyout menu
         toolbar_button = QToolButton()
         toolbar_button.setMenu(self.plugin_menu)
@@ -200,14 +204,14 @@ class RenameAndMoveLayersToGPKG:
         Called when the plugin is unloaded according to the plugin QGIS metadata.
         """
         # Remove toolbar icons for all actions
-        for action in self.actions:
-            if isinstance(action, (QAction, QToolButton)):
-                self.iface.removeToolBarIcon(action)
+        for obj in self.actions:
+            if isinstance(obj, QAction):
+                self.iface.removeToolBarIcon(obj)
 
         # Remove the plugin menu from the "Plugins" menu.
         # Remove the menu, which will automatically remove its actions.
         if self.plugin_menu:
-            self.iface.pluginMenu().removeAction(self.plugin_menu.menuAction())
+            self.iface.pluginMenu().removeAction(self.plugin_menu.menuAction())  # type: ignore[]
 
         self.actions.clear()
         self.plugin_menu = None
@@ -215,15 +219,15 @@ class RenameAndMoveLayersToGPKG:
     def rename_selected_layers(self) -> None:
         """Call rename function from 'functions_rename.py'."""
 
-        rename_layers(self)
+        rename_layers(self)  # type: ignore[]
 
     def move_selected_layers(self) -> None:
         """Call move function from 'functions_geopackage.py'."""
 
-        move_layers_to_gpkg(self)
+        move_layers_to_gpkg(self)  # type: ignore[]
 
     def rename_and_move_layers(self) -> None:
         """Combine the rename and move functions."""
 
-        rename_layers(self)
-        move_layers_to_gpkg(self)
+        rename_layers(self)  # type: ignore[]
+        move_layers_to_gpkg(self)  # type: ignore[]

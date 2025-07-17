@@ -1,4 +1,4 @@
-"""Module: functions.py
+"""Module: functions_rename.py
 
 This module contains the function for renaming and moving layers
 in a QGIS project based on their group names.
@@ -17,7 +17,12 @@ from qgis.core import (
 )
 from qgis.gui import QgisInterface
 
-from .functions_general import get_current_project, get_selected_layers, report_summary
+from .functions_general import (
+    display_summary_message,
+    generate_summary_message,
+    get_current_project,
+    get_selected_layers,
+)
 
 if TYPE_CHECKING:
     from qgis.core import QgsLayerTree, QgsLayerTreeNode
@@ -125,4 +130,13 @@ def rename_layers(plugin: QgisInterface) -> None:
     failed_renames = execute_rename_plan(rename_plan)
 
     # --- 3. Report summary ---
-    report_summary(plugin, rename_plan, skipped_layers, failed_renames, error_layers)
+    successful_count: int = len(rename_plan) - len(failed_renames)
+    message, level = generate_summary_message(
+        successes=successful_count,
+        skipped=skipped_layers,
+        failures=failed_renames,
+        not_found=error_layers,
+        action="Renamed",
+    )
+
+    display_summary_message(plugin, message, level)
