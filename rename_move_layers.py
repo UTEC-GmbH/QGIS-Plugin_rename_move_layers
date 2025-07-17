@@ -35,6 +35,7 @@ from qgis.PyQt.QtWidgets import (
 )
 
 from . import resources  # noqa: F401 - Import is necessary to load resources
+from .modules.functions_geopackage import move_layers_to_gpkg
 from .modules.functions_rename import rename_layers
 
 
@@ -150,9 +151,24 @@ class RenameAndMoveLayersToGPKG:
         )
         self.plugin_menu.addAction(rename_action)
 
+        # Add an action for moving layers
+        move_action = self.add_action(
+            self.icon_path,
+            text="Move Layers to GeoPackage",
+            callback=self.move_selected_layers,
+            parent=self.iface.mainWindow(),
+            add_to_menu=False,  # Added to custom menu
+            add_to_toolbar=False,
+            status_tip="Move selected layers to the project's GeoPackage",
+            whats_this=(
+                "Copies selected layers to a GeoPackage, removes them "
+                "from the current project and adds them back from the GeoPackage."
+            ),
+        )
+        self.plugin_menu.addAction(move_action)
+
         # Add the fly-out menu to the main "Plugins" menu
         self.iface.pluginMenu().addMenu(self.plugin_menu)
-
         # Add a toolbutton to the toolbar to show the flyout menu
         toolbar_button = QToolButton()
         toolbar_button.setMenu(self.plugin_menu)
@@ -183,3 +199,8 @@ class RenameAndMoveLayersToGPKG:
         """Call rename function from 'functions.py'."""
 
         rename_layers(self)
+
+    def move_selected_layers(self) -> None:
+        """Call move function from 'functions.py'."""
+
+        move_layers_to_gpkg(self)

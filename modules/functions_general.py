@@ -13,7 +13,7 @@ from qgis.core import (
 from qgis.gui import QgisInterface
 
 
-def check_project(plugin: QgisInterface) -> QgsProject:
+def get_current_project(plugin: QgisInterface) -> QgsProject:
     """Check if a QGIS project is currently open and returns the project instance.
 
     If no project is open, displays an error message using the provided QGIS

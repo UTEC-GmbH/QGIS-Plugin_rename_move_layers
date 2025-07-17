@@ -17,7 +17,7 @@ from qgis.core import (
 )
 from qgis.gui import QgisInterface
 
-from .functions_general import check_project, get_selected_layers, report_summary
+from .functions_general import get_current_project, get_selected_layers, report_summary
 
 if TYPE_CHECKING:
     from qgis.core import QgsLayerTree, QgsLayerTreeNode
@@ -39,7 +39,23 @@ def fix_layer_name(name: str) -> str:
     fixed_name: str = name
     with contextlib.suppress(UnicodeEncodeError):
         fixed_name = name.encode("cp1252").decode("utf-8")
-    return re.sub(r'[<>:"/\\|?*]+', "_", fixed_name)
+
+    # Remove or replace problematic characters
+    sanitized_name: str = re.sub(r'[<>:"/\\|?*]+,.', "_", fixed_name)
+
+    # Replace German Umlauts with their corresponding ASCII characters
+    umlaut_map: dict[str, str] = {
+        "Ä": "Ae",
+        "Ö": "Oe",
+        "Ü": "Ue",
+        "ä": "ae",
+        "ö": "oe",
+        "ü": "ue",
+        "ß": "ss",
+    }
+    for umlaut, replacement in umlaut_map.items():
+        sanitized_name = sanitized_name.replace(umlaut, replacement)
+    return sanitized_name
 
 
 def prepare_rename_plan(plugin: QgisInterface) -> tuple[list, list, list, list]:
@@ -54,7 +70,7 @@ def prepare_rename_plan(plugin: QgisInterface) -> tuple[list, list, list, list]:
     skipped_layers: list[str] = []  # List of layer names that are not in a group
     error_layers: list[str] = []  # List of layer names that could not be found
 
-    project: QgsProject = check_project(plugin)
+    project: QgsProject = get_current_project(plugin)
 
     root: QgsLayerTree | None = project.layerTreeRoot()
     if root is None:
