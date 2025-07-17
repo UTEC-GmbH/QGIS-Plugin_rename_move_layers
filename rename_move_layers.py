@@ -27,14 +27,18 @@ from pathlib import Path
 from typing import Callable
 
 from qgis.gui import QgisInterface
-from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtWidgets import QAction, QMenu, QToolButton
+from qgis.PyQt.QtGui import QIcon  # type: ignore[reportAttributeAccessIssue]
+from qgis.PyQt.QtWidgets import (
+    QAction,
+    QMenu,  # type: ignore[reportAttributeAccessIssue]
+    QToolButton,  # type: ignore[reportAttributeAccessIssue]
+)
 
 from . import resources  # noqa: F401 - Import is necessary to load resources
 from .functions import rename_layers
 
 
-class RenameAndMoveLayersToGPKG:  # pylint: disable=invalid-name
+class RenameAndMoveLayersToGPKG:
     """QGIS Plugin for renaming and moving layers to a GeoPackage."""
 
     def __init__(self, iface: QgisInterface) -> None:

@@ -15,5 +15,8 @@
             "name": "PyQt5",
             "depth": 4
         }
+    ],
+    "pylint.args": [
+        "--rcfile=${workspaceFolder}/.pylintrc"
     ]
 }

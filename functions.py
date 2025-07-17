@@ -4,6 +4,8 @@ This module contains the function for renaming and moving layers
 in a QGIS project based on their group names.
 """
 
+from typing import TYPE_CHECKING
+
 from qgis.core import (
     Qgis,
     QgsLayerTreeGroup,
@@ -11,14 +13,18 @@ from qgis.core import (
     QgsMapLayer,
     QgsProject,
 )
+from qgis.gui import QgisInterface
+
+if TYPE_CHECKING:
+    from qgis._core import QgsLayerTree
 
 
-def get_selected_layers(plugin) -> list[QgsMapLayer]:
+def get_selected_layers(plugin: QgisInterface) -> list[QgsMapLayer]:
     """Collect all layers selected in the QGIS layer tree view.
 
     :returns: A list of selected QgsMapLayer objects.
     """
-    selected_layers = set()
+    selected_layers: set[QgsMapLayer] = set()
     selected_nodes = plugin.iface.layerTreeView().selectedNodes()
 
     for node in selected_nodes:
@@ -33,7 +39,7 @@ def get_selected_layers(plugin) -> list[QgsMapLayer]:
     return list(selected_layers)
 
 
-def rename_layers(plugin) -> None:
+def rename_layers(plugin: QgisInterface) -> None:
     """Rename the selected layers to their parent group names.
 
     Process all selected layers and provides a single summary message at the end.
@@ -46,23 +52,31 @@ def rename_layers(plugin) -> None:
         return
 
     # --- 1. Gather information and plan actions ---
-    rename_plan = []  # List of (layer, old_name, new_name)
-    skipped_layers = []  # List of layer names that are not in a group
-    error_layers = []  # List of layer names that could not be found
+    rename_plan: list = []  # List of (layer, old_name, new_name)
+    skipped_layers: list[str] = []  # List of layer names that are not in a group
+    error_layers: list[str] = []  # List of layer names that could not be found
 
-    root = QgsProject.instance().layerTreeRoot()
+    project: QgsProject | None = QgsProject.instance()
+    if project is None:
+        # Handle the case where no project is open or QGIS environment is not set up
+        plugin.iface.messageBar().pushMessage(
+            "Error", "No QGIS project is currently open.", level=Qgis.Critical
+        )
+        return
+
+    root: QgsLayerTree = project.layerTreeRoot()
 
     for layer in layers_to_process:
-        node = root.findLayer(layer.id())
+        node: QgsLayerTreeLayer = root.findLayer(layer.id())
         if not node:
             error_layers.append(layer.name())
             continue
 
         parent = node.parent()
         if isinstance(parent, QgsLayerTreeGroup):
-            group_name = parent.name()
-            current_name = layer.name()
-            new_name = group_name.encode("latin-1").decode("utf-8", "ignore")
+            group_name: str = parent.name()
+            current_name: str = layer.name()
+            new_name: str = group_name.encode("latin-1").decode("utf-8", "ignore")
 
             if current_name != new_name:
                 rename_plan.append((layer, current_name, new_name))
@@ -83,7 +97,7 @@ def rename_layers(plugin) -> None:
         )
         return
 
-    message_parts = []
+    message_parts: list[str] = []
     level = Qgis.Success
     if rename_plan:
         message_parts.append(f"Renamed {len(rename_plan)} layer(s).")
