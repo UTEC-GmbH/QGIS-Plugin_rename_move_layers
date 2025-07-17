@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from osgeo import ogr
+from qgis._core import QgsLayerTree
 from qgis.core import (
     Qgis,
     QgsProject,
@@ -46,7 +47,16 @@ def project_gpkg(plugin: QgisInterface) -> Path:
 
     if not gpkg_path.exists():
         driver = ogr.GetDriverByName("GPKG")
-        gpkg_path = driver.CreateDataSource(str(gpkg_path))
+        data_source = driver.CreateDataSource(str(gpkg_path))
+        if data_source is None:
+            error_msg = f"Failed to create GeoPackage at: {gpkg_path}"
+            plugin.iface.messageBar().pushMessage(
+                "Error", error_msg, level=Qgis.Critical
+            )
+            raise OSError(error_msg)
+
+        # Dereference the data source to close the file and release the lock.
+        data_source = None
 
     return gpkg_path
 
@@ -91,7 +101,59 @@ def add_layers_to_gpkg(plugin: QgisInterface) -> None:
             )
 
 
+def add_layers_from_gpkg_to_project(plugin: QgisInterface) -> None:
+    """Add the selected layers from the project's GeoPackage."""
+    project: QgsProject = get_current_project(plugin)
+    selected_layers: list[QgsMapLayer] = get_selected_layers(plugin)
+    gpkg_path: Path = project_gpkg(plugin)
+    gpkg_path_str = str(gpkg_path)
+
+    root: QgsLayerTree | None = project.layerTreeRoot()
+    if not root:
+        plugin.iface.messageBar().pushMessage(
+            "Error", "Could not get layer tree root.", level=Qgis.Critical
+        )
+        return
+
+    added_layers: list[str] = []
+    not_found_layers: list[str] = []
+
+    for layer_to_find in selected_layers:
+        layer_name: str = layer_to_find.name()
+
+        # Construct the layer URI and create a QgsVectorLayer
+        uri: str = f"{gpkg_path_str}|layername={layer_name}"
+        gpkg_layer = QgsVectorLayer(uri, layer_name, "ogr")
+
+        if not gpkg_layer.isValid():
+            not_found_layers.append(layer_name)
+            continue
+
+        # Add the layer to the project registry first, but not the legend
+        project.addMapLayer(gpkg_layer, False)
+        # Then, insert it at the top of the layer tree
+        root.insertLayer(0, gpkg_layer)
+        added_layers.append(layer_name)
+
+    if added_layers:
+        plural_s: str = "s" if len(added_layers) > 1 else ""
+        plugin.iface.messageBar().pushMessage(
+            "Success",
+            f"Added {len(added_layers)} layer{plural_s} from the GeoPackage.",
+            level=Qgis.Success,
+        )
+    if not_found_layers:
+        plural_s = "s" if len(not_found_layers) > 1 else ""
+        layer_list: str = ", ".join(not_found_layers)
+        plugin.iface.messageBar().pushMessage(
+            "Warning",
+            f"Could not find {len(not_found_layers)} layer{plural_s} in GeoPackage: {layer_list}",
+            level=Qgis.Warning,
+        )
+
+
 def move_layers_to_gpkg(plugin: QgisInterface) -> None:
     """Move the selected layers to the project's GeoPackage."""
 
     add_layers_to_gpkg(plugin)
+    add_layers_from_gpkg_to_project(plugin)

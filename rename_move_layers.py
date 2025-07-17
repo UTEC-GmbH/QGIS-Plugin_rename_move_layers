@@ -161,11 +161,28 @@ class RenameAndMoveLayersToGPKG:
             add_to_toolbar=False,
             status_tip="Move selected layers to the project's GeoPackage",
             whats_this=(
-                "Copies selected layers to a GeoPackage, removes them "
-                "from the current project and adds them back from the GeoPackage."
+                "Copies selected layers to a GeoPackage and "
+                "adds them back from the GeoPackage."
             ),
         )
         self.plugin_menu.addAction(move_action)
+
+        # Add an action for renaming and moving layers
+        rename_move_action = self.add_action(
+            self.icon_path,
+            text="Rename Layers and Move them to GeoPackage",
+            callback=self.rename_and_move_layers,
+            parent=self.iface.mainWindow(),
+            add_to_menu=False,  # Added to custom menu
+            add_to_toolbar=False,
+            status_tip="Rename and move selected layers to the project's GeoPackage",
+            whats_this=(
+                "Renames the selected layers to their parent group names, "
+                "then copies them to the project's GeoPackage and "
+                "adds them back from the GeoPackage."
+            ),
+        )
+        self.plugin_menu.addAction(rename_move_action)
 
         # Add the fly-out menu to the main "Plugins" menu
         self.iface.pluginMenu().addMenu(self.plugin_menu)
@@ -196,11 +213,17 @@ class RenameAndMoveLayersToGPKG:
         self.plugin_menu = None
 
     def rename_selected_layers(self) -> None:
-        """Call rename function from 'functions.py'."""
+        """Call rename function from 'functions_rename.py'."""
 
         rename_layers(self)
 
     def move_selected_layers(self) -> None:
-        """Call move function from 'functions.py'."""
+        """Call move function from 'functions_geopackage.py'."""
 
+        move_layers_to_gpkg(self)
+
+    def rename_and_move_layers(self) -> None:
+        """Combine the rename and move functions."""
+
+        rename_layers(self)
         move_layers_to_gpkg(self)

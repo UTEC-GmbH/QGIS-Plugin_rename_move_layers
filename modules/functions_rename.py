@@ -41,20 +41,8 @@ def fix_layer_name(name: str) -> str:
         fixed_name = name.encode("cp1252").decode("utf-8")
 
     # Remove or replace problematic characters
-    sanitized_name: str = re.sub(r'[<>:"/\\|?*]+,.', "_", fixed_name)
+    sanitized_name: str = re.sub(r'[<>:"/\\|?*,]+', "_", fixed_name)
 
-    # Replace German Umlauts with their corresponding ASCII characters
-    umlaut_map: dict[str, str] = {
-        "Ä": "Ae",
-        "Ö": "Oe",
-        "Ü": "Ue",
-        "ä": "ae",
-        "ö": "oe",
-        "ü": "ue",
-        "ß": "ss",
-    }
-    for umlaut, replacement in umlaut_map.items():
-        sanitized_name = sanitized_name.replace(umlaut, replacement)
     return sanitized_name
 
 
