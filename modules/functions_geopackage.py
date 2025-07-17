@@ -6,7 +6,13 @@ This module contains the functions concerning GeoPackages.
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from qgis.core import QgsProject, QgsVectorFileWriter, QgsWkbTypes
+from qgis.core import (
+    Qgis,
+    QgsCoordinateTransformContext,
+    QgsProject,
+    QgsVectorFileWriter,
+    QgsVectorLayer,
+)
 from qgis.gui import QgisInterface
 
 from .functions_general import check_project, get_selected_layers
@@ -38,25 +44,44 @@ def project_gpkg(plugin: QgisInterface) -> Path:
 def copy_layers_to_gpkg(plugin: QgisInterface) -> None:
     """Copy the selected layers to the project's GeoPackage."""
 
+    project: QgsProject = check_project(plugin)
     layers: list[QgsMapLayer] = get_selected_layers(plugin)
     gpkg_path: Path = project_gpkg(plugin)
     gpkg_path_str = str(gpkg_path)
 
-    # Initialize success and failure lists to track results
-    successes = 0
-    failures = []
+    # Initialize a dictionary to track results
+    results = {"successes": 0, "failures": []}
 
     for layer in layers:
-        options = QgsVectorFileWriter.SaveVectorOptions()
-        options.driverName = "GPKG"
-        options.writeGeometryType = QgsWkbTypes.Unknown
-        options.overrideGeometryType = True
-        options.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteLayer
+        if isinstance(layer, QgsVectorLayer):
+            options = QgsVectorFileWriter.SaveVectorOptions()
+            options.driverName = "GPKG"
+            options.layerName = layer.name()
+            options.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteLayer
 
-        error = QgsVectorFileWriter.writeAsVectorFormat(layer, gpkg_path_str, options)
-        if error[0] == QgsVectorFileWriter.NoError:
-            successes += 1
-        else:
-            failures.append(
-                (layer.name(), error[1])
-            )  # Store layer name and error message
+            transform_context: QgsCoordinateTransformContext = (
+                project.transformContext()
+            )
+            error: tuple[
+                QgsVectorFileWriter.WriterError, str | None, str | None, str | None
+            ] = QgsVectorFileWriter.writeAsVectorFormatV3(
+                layer, gpkg_path_str, transform_context, options
+            )
+            if error[0] == QgsVectorFileWriter.WriterError.NoError:
+                results["successes"] += 1
+            else:
+                results["failures"].append((layer.name(), error[1]))
+
+    if results["successes"] > 0:
+        plugin.iface.messageBar().pushMessage(
+            "Success",
+            f"Copied {results['successes']} layers to GeoPackage.",
+            level=Qgis.Success,
+        )
+    if results["failures"]:
+        for layer_name, error_msg in results["failures"]:
+            plugin.iface.messageBar().pushMessage(
+                "Error",
+                f"Failed to copy layer {layer_name}: {error_msg}",
+                level=Qgis.Critical,
+            )

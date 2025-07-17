@@ -20,7 +20,7 @@ from qgis.gui import QgisInterface
 from .functions_general import check_project, get_selected_layers, report_summary
 
 if TYPE_CHECKING:
-    from qgis._core import QgsLayerTree, QgsLayerTreeNode
+    from qgis.core import QgsLayerTree, QgsLayerTreeNode
 
 
 def fix_layer_name(name: str) -> str:
