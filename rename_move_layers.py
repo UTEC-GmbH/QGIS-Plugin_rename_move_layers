@@ -26,13 +26,17 @@
 from pathlib import Path
 from typing import Callable
 
-from qgis.core import Qgis, QgsLayerTreeGroup, QgsMapLayer, QgsProject
 from qgis.gui import QgisInterface
-from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtWidgets import QAction
+from qgis.PyQt.QtGui import QIcon  # type: ignore[reportAttributeAccessIssue]
+from qgis.PyQt.QtWidgets import (
+    QAction,
+    QMenu,  # type: ignore[reportAttributeAccessIssue]
+    QToolButton,  # type: ignore[reportAttributeAccessIssue]
+)
 
-from . import resources  # noqa: F401
-from .move_layers_to_gpkg_dialog import MoveLayersToGPKGDialog
+from . import resources  # noqa: F401 - Import is necessary to load resources
+from .modules.functions_geopackage import move_layers_to_gpkg
+from .modules.functions_rename import rename_layers
 
 
 class RenameAndMoveLayersToGPKG:
@@ -47,9 +51,11 @@ class RenameAndMoveLayersToGPKG:
         self.iface: QgisInterface = iface
         self.plugin_dir: Path = Path(__file__).parent
         self.actions: list = []
-        self.menu: str = "Move Layers to GeoPackage"
+        # Using a shorter name for the menu for a cleaner look
+        self.menu: str = "Layer Tools"
+        self.plugin_menu: QMenu | None = None
         self.dlg = None
-        self.icon_path = ":/plugins/QGIS_plugin_move_layers_to_gpkg/icon.png"
+        self.icon_path = ":/plugins/rename_move_layers/icon.png"
 
     def add_action(
         self,
@@ -61,7 +67,7 @@ class RenameAndMoveLayersToGPKG:
         add_to_toolbar: bool = True,
         status_tip: str | None = None,
         whats_this: str | None = None,
-        parent: None = None,
+        parent=None,
     ) -> QAction:
         """Add a toolbar icon to the toolbar.
 
@@ -117,7 +123,6 @@ class RenameAndMoveLayersToGPKG:
             action.setWhatsThis(whats_this)
 
         if add_to_toolbar:
-            # TODO: parent parameter of addAction is expected to be 'QToolBar'
             self.iface.addToolBarIcon(action)
 
         if add_to_menu:
@@ -128,80 +133,97 @@ class RenameAndMoveLayersToGPKG:
         return action
 
     def initGui(self) -> None:  # noqa: N802
-        """Set up GUI and connect signals.
+        """Create the menu entries and toolbar icons for the plugin."""
+        # Create a menu for the plugin in the "Plugins" menu
+        self.plugin_menu = QMenu(self.menu, self.iface.pluginMenu())
+        self.plugin_menu.setIcon(QIcon(self.icon_path))
 
-        Called when the plugin is loaded according to the plugin QGIS metadata.
-        """
-
-        # Create action that will start plugin configuration
-        self.add_action(
+        # Add an action for renaming layers
+        rename_action = self.add_action(
             self.icon_path,
-            text=self.menu,
-            callback=self.run,
+            text="Rename Layers by Group",
+            callback=self.rename_selected_layers,
             parent=self.iface.mainWindow(),
-            status_tip=f"Open the {self.menu} dialog",
-            whats_this=f"This opens the {self.menu} dialog.",
+            add_to_menu=False,  # Will be added to our custom menu
+            add_to_toolbar=False,  # Avoid creating a separate toolbar button
+            status_tip="Rename selected layers to their parent group names",
+            whats_this="Renames selected layers to match their parent group's name.",
         )
+        self.plugin_menu.addAction(rename_action)
+
+        # Add an action for moving layers
+        move_action = self.add_action(
+            self.icon_path,
+            text="Move Layers to GeoPackage",
+            callback=self.move_selected_layers,
+            parent=self.iface.mainWindow(),
+            add_to_menu=False,  # Added to custom menu
+            add_to_toolbar=False,
+            status_tip="Move selected layers to the project's GeoPackage",
+            whats_this=(
+                "Copies selected layers to a GeoPackage and "
+                "adds them back from the GeoPackage."
+            ),
+        )
+        self.plugin_menu.addAction(move_action)
+
+        # Add an action for renaming and moving layers
+        rename_move_action = self.add_action(
+            self.icon_path,
+            text="Rename Layers and Move them to GeoPackage",
+            callback=self.rename_and_move_layers,
+            parent=self.iface.mainWindow(),
+            add_to_menu=False,  # Added to custom menu
+            add_to_toolbar=False,
+            status_tip="Rename and move selected layers to the project's GeoPackage",
+            whats_this=(
+                "Renames the selected layers to their parent group names, "
+                "then copies them to the project's GeoPackage and "
+                "adds them back from the GeoPackage."
+            ),
+        )
+        self.plugin_menu.addAction(rename_move_action)
+
+        # Add the fly-out menu to the main "Plugins" menu
+        self.iface.pluginMenu().addMenu(self.plugin_menu)
+        # Add a toolbutton to the toolbar to show the flyout menu
+        toolbar_button = QToolButton()
+        toolbar_button.setMenu(self.plugin_menu)
+        toolbar_button.setDefaultAction(rename_action)  # Use an action's icon
+        toolbar_button.setPopupMode(QToolButton.InstantPopup)
+        self.iface.addToolBarWidget(toolbar_button)
+        self.actions.append(toolbar_button)  # Keep track of it for removal
 
     def unload(self) -> None:
         """Plugin unload method.
 
         Called when the plugin is unloaded according to the plugin QGIS metadata.
         """
-        # Remove toolbar actions and menu items
+        # Remove toolbar icons for all actions
         for action in self.actions:
-            self.iface.removePluginMenu("Move Layers to GeoPackage", action)
-            self.iface.removeToolBarIcon(action)
+            if isinstance(action, (QAction, QToolButton)):
+                self.iface.removeToolBarIcon(action)
 
-    def run(self) -> None:
-        """Run method that opens the plugin dialog."""
-        # Create the dialog with elements (after translation) and keep reference
-        # Only create one instance
-        if self.dlg is None:
-            self.dlg = MoveLayersToGPKGDialog(parent=self.iface.mainWindow())
+        # Remove the plugin menu from the "Plugins" menu.
+        # Remove the menu, which will automatically remove its actions.
+        if self.plugin_menu:
+            self.iface.pluginMenu().removeAction(self.plugin_menu.menuAction())
 
-        # Show the dialog
-        self.dlg.show()
+        self.actions.clear()
+        self.plugin_menu = None
 
-    def rename_selected_layer(self) -> None:
-        """Rename the currently selected layer to its parent group name.
-        This method is called when the user clicks the plugin action.
-        """
-        layer: QgsMapLayer | None = (
-            self.iface.activeLayer()
-        )  # Get the currently selected layer
-        if layer is None:
-            self.iface.messageBar().pushMessage(
-                "Warning", "No layer selected.", level=Qgis.Warning
-            )
-            return
+    def rename_selected_layers(self) -> None:
+        """Call rename function from 'functions_rename.py'."""
 
-        layer_tree_node = QgsProject.instance().layerTreeRoot().findLayer(layer.id())
-        if layer_tree_node:
-            parent_group = layer_tree_node.parent()
-            if isinstance(parent_group, QgsLayerTreeGroup):
-                group_name: str = parent_group.name()
-                current_layer_name: str = layer.name()
+        rename_layers(self)
 
-                # Fix for encoding issues (mojibake) where UTF-8 characters are
-                # incorrectly decoded as a single-byte encoding like latin-1.
-                # This re-encodes the string to bytes and then decodes it correctly.
-                new_layer_name: str = group_name.encode("latin-1").decode(
-                    "utf-8", "ignore"
-                )
-                layer.setName(new_layer_name)
-                self.iface.messageBar().pushMessage(
-                    "Info",
-                    f"Layer '{current_layer_name}' renamed to '{new_layer_name}'.",
-                    level=Qgis.Info,
-                )
-            else:
-                self.iface.messageBar().pushMessage(
-                    "Warning",
-                    "Selected layer is not within a group.",
-                    level=Qgis.Warning,
-                )
-        else:
-            self.iface.messageBar().pushMessage(
-                "Error", "Could not find layer in layer tree.", level=Qgis.Critical
-            )
+    def move_selected_layers(self) -> None:
+        """Call move function from 'functions_geopackage.py'."""
+
+        move_layers_to_gpkg(self)
+
+    def rename_and_move_layers(self) -> None:
+        """Combine the rename and move functions."""
+
+        rename_layers(self)
+        move_layers_to_gpkg(self)
