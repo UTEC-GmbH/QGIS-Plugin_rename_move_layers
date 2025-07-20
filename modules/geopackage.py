@@ -3,6 +3,7 @@
 This module contains the functions concerning GeoPackages.
 """
 
+import re
 from pathlib import Path
 
 from osgeo import ogr
@@ -13,11 +14,13 @@ from qgis.core import (
     QgsProject,
     QgsVectorFileWriter,
     QgsVectorLayer,
+    QgsWkbTypes,
 )
 from qgis.gui import QgisInterface
 
 from .general import (
     EMPTY_LAYER_NAME,
+    GEOMETRY_SUFFIX_MAP,
     clear_attribute_table,
     display_summary_message,
     generate_summary_message,
@@ -67,21 +70,50 @@ def project_gpkg(plugin: QgisInterface) -> Path:
 
 
 def check_existing_layer(gpkg_path: Path, layer: QgsMapLayer) -> str:
-    """Check if a layer already exists in the GeoPackage.
-    If it does, check the geometry type and return the layer name.
+    """Check if a layer with the same name and geometry type exists in the GeoPackage.
+
+    If a layer with the same name but different geometry type exists, a new
+    unique name is returned by appending a geometry suffix. If a layer with
+    the same name and geometry type exists, the original name is returned to
+    allow overwriting.
 
     :param gpkg_path: The path to the GeoPackage.
     :param layer: The layer to check for existence.
-    :returns: The name of the existing layer with geometry type suffix if found,
-              otherwise the original layer name.
+    :returns: A layer name for the GeoPackage. This will be the original name
+              if no layer with that name exists, or if a layer with the same
+              name and geometry type exists (allowing overwrite). It will be a
+              new name with a suffix if a layer with the same name but
+              different geometry type exists.
     """
-    uri: str = f"{gpkg_path}|layername={layer.name()}"
-    gpkg_layer = QgsVectorLayer(uri, layer.name(), "ogr")
+    if not isinstance(layer, QgsVectorLayer):
+        return layer.name()
 
-    if gpkg_layer.isValid():
-        return f"{layer.name()}{geometry_type_suffix(layer)}"
+    layer_name: str = layer.name()
+    uri: str = f"{gpkg_path}|layername={layer_name}"
+    gpkg_layer = QgsVectorLayer(uri, layer_name, "ogr")
 
-    return layer.name()
+    if not gpkg_layer.isValid():
+        # Layer does not exist, safe to use original name.
+        return layer_name
+
+    # A layer with the same name exists. Check geometry types.
+    incoming_geom_type: Qgis.GeometryType = QgsWkbTypes.geometryType(layer.wkbType())
+    existing_geom_type: Qgis.GeometryType = QgsWkbTypes.geometryType(
+        gpkg_layer.wkbType()
+    )
+
+    if incoming_geom_type == existing_geom_type:
+        # Name and geometry match, so we can overwrite. Return original name.
+        return layer_name
+
+    # Name matches but geometry is different. Create a new name with a suffix.
+    # First, strip any existing geometry suffix from the layer name to get a
+    # base name to prevent creating names with double suffixes (e.g., 'layer-pt-pt').
+    suffix_values: str = "|".join(GEOMETRY_SUFFIX_MAP.values())
+    suffix_pattern: str = rf"\s-\s({suffix_values})$"
+    base_name: str = re.sub(suffix_pattern, "", layer_name)
+
+    return f"{base_name}{geometry_type_suffix(layer)}"
 
 
 def add_layers_to_gpkg(plugin: QgisInterface) -> None:
@@ -100,7 +132,7 @@ def add_layers_to_gpkg(plugin: QgisInterface) -> None:
             options.layerName = check_existing_layer(gpkg_path, layer)
             options.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteLayer
 
-            error: tuple = QgsVectorFileWriter.writeAsVectorFormatV3(
+            error = QgsVectorFileWriter.writeAsVectorFormatV3(
                 layer, str(gpkg_path), project.transformContext(), options
             )
             if error[0] == QgsVectorFileWriter.WriterError.NoError:

@@ -14,6 +14,7 @@ from qgis.core import (
     QgsLayerTreeGroup,
     QgsLayerTreeLayer,
     QgsMapLayer,
+    QgsMessageLog,
     QgsProject,
     QgsVectorLayer,
     QgsWkbTypes,
@@ -77,7 +78,7 @@ def prepare_rename_plan(plugin: QgisInterface) -> tuple[list, list, list, list]:
     root: QgsLayerTree | None = project.layerTreeRoot()
     if root is None:
         error_msg: str = "No Layer Tree is available."
-        plugin.iface.messageBar().pushMessage("Error", error_msg, level=Qgis.Critical)
+        QgsMessageLog.logMessage(error_msg, "Error", level=Qgis.Critical)
         raise RuntimeError(error_msg)
 
     for layer in layers_to_process:
@@ -100,7 +101,33 @@ def prepare_rename_plan(plugin: QgisInterface) -> tuple[list, list, list, list]:
             skipped_layers.append(layer.name())
 
     # Build the final rename plan, handling name collisions
-    rename_plan: list = []
+    rename_plan = build_rename_plan(potential_renames)
+
+    # The failed_renames list is populated by execute_rename_plan,
+    # so initialize it as empty.
+    failed_renames: list = []
+
+    return rename_plan, skipped_layers, failed_renames, error_layers
+
+
+def build_rename_plan(
+    potential_renames: defaultdict[str, list[QgsMapLayer]],
+) -> list[tuple[QgsMapLayer, str, str]]:
+    """Build a list of rename operations, handling potential name collisions.
+
+    This function processes a dictionary where keys are potential new layer names
+    and values are lists of layers that would be renamed to that key. If a key
+    maps to multiple layers (a name collision), it appends a geometry-specific
+    suffix to each layer's new name to ensure uniqueness. If a layer's current
+    name already matches the proposed new name, it is excluded from the plan.
+
+    :param potential_renames: A dictionary grouping layers by their proposed new
+        base name.
+    :returns: A list of tuples, where each tuple contains the layer object, its
+        original name, and its proposed new name. This list represents the
+        final, conflict-resolved rename plan.
+    """
+    rename_plan: list[tuple[QgsMapLayer, str, str]] = []
     for new_name_base, layers in potential_renames.items():
         if len(layers) > 1:  # Name collision detected
             for layer in layers:
@@ -116,12 +143,7 @@ def prepare_rename_plan(plugin: QgisInterface) -> tuple[list, list, list, list]:
             layer = layers[0]
             if layer.name() != new_name_base:
                 rename_plan.append((layer, layer.name(), new_name_base))
-
-    # The failed_renames list is populated by execute_rename_plan,
-    # so initialize it as empty.
-    failed_renames: list = []
-
-    return rename_plan, skipped_layers, failed_renames, error_layers
+    return rename_plan
 
 
 def execute_rename_plan(rename_plan: list) -> list:
@@ -150,19 +172,13 @@ def execute_rename_plan(rename_plan: list) -> list:
 def rename_layers(plugin: QgisInterface) -> None:
     """Orchestrates the renaming of selected layers to their parent group names."""
 
-    # --- 1. Gather information and plan actions ---
-
-    plan = prepare_rename_plan(plugin)
-
+    plan: tuple = prepare_rename_plan(plugin)
     if not plan:
         return  # Early exit if no plan could be prepared
-
     rename_plan, skipped_layers, failed_renames, error_layers = plan
 
-    # --- 2. Execute actions ---
-    failed_renames = execute_rename_plan(rename_plan)
+    failed_renames: list = execute_rename_plan(rename_plan)
 
-    # --- 3. Report summary ---
     successful_count: int = len(rename_plan) - len(failed_renames)
     message, level = generate_summary_message(
         successes=successful_count,
