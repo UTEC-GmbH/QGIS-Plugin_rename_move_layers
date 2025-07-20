@@ -3,23 +3,31 @@
 This module contains the functions concerning GeoPackages.
 """
 
+import re
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from osgeo import ogr
-from qgis._core import QgsLayerTree
 from qgis.core import (
     Qgis,
+    QgsLayerTree,
+    QgsMapLayer,
     QgsProject,
     QgsVectorFileWriter,
     QgsVectorLayer,
+    QgsWkbTypes,
 )
 from qgis.gui import QgisInterface
 
-from .functions_general import get_current_project, get_selected_layers
-
-if TYPE_CHECKING:
-    from qgis.core import QgsMapLayer
+from .general import (
+    EMPTY_LAYER_NAME,
+    GEOMETRY_SUFFIX_MAP,
+    clear_attribute_table,
+    display_summary_message,
+    generate_summary_message,
+    get_current_project,
+    get_selected_layers,
+)
+from .rename import geometry_type_suffix
 
 
 def project_gpkg(plugin: QgisInterface) -> Path:
@@ -61,44 +69,102 @@ def project_gpkg(plugin: QgisInterface) -> Path:
     return gpkg_path
 
 
+def check_existing_layer(gpkg_path: Path, layer: QgsMapLayer) -> str:
+    """Check if a layer with the same name and geometry type exists in the GeoPackage.
+
+    If a layer with the same name but different geometry type exists, a new
+    unique name is returned by appending a geometry suffix. If a layer with
+    the same name and geometry type exists, the original name is returned to
+    allow overwriting.
+
+    :param gpkg_path: The path to the GeoPackage.
+    :param layer: The layer to check for existence.
+    :returns: A layer name for the GeoPackage. This will be the original name
+              if no layer with that name exists, or if a layer with the same
+              name and geometry type exists (allowing overwrite). It will be a
+              new name with a suffix if a layer with the same name but
+              different geometry type exists.
+    """
+    if not isinstance(layer, QgsVectorLayer):
+        return layer.name()
+
+    layer_name: str = layer.name()
+    uri: str = f"{gpkg_path}|layername={layer_name}"
+    gpkg_layer = QgsVectorLayer(uri, layer_name, "ogr")
+
+    if not gpkg_layer.isValid():
+        # Layer does not exist, safe to use original name.
+        return layer_name
+
+    # A layer with the same name exists. Check geometry types.
+    incoming_geom_type: Qgis.GeometryType = QgsWkbTypes.geometryType(layer.wkbType())
+    existing_geom_type: Qgis.GeometryType = QgsWkbTypes.geometryType(
+        gpkg_layer.wkbType()
+    )
+
+    if incoming_geom_type == existing_geom_type:
+        # Name and geometry match, so we can overwrite. Return original name.
+        return layer_name
+
+    # Name matches but geometry is different. Create a new name with a suffix.
+    # First, strip any existing geometry suffix from the layer name to get a
+    # base name to prevent creating names with double suffixes (e.g., 'layer-pt-pt').
+    suffix_values: str = "|".join(GEOMETRY_SUFFIX_MAP.values())
+    suffix_pattern: str = rf"\s-\s({suffix_values})$"
+    base_name: str = re.sub(suffix_pattern, "", layer_name)
+
+    return f"{base_name}{geometry_type_suffix(layer)}"
+
+
 def add_layers_to_gpkg(plugin: QgisInterface) -> None:
     """Add the selected layers to the project's GeoPackage."""
 
     project: QgsProject = get_current_project(plugin)
     layers: list[QgsMapLayer] = get_selected_layers(plugin)
     gpkg_path: Path = project_gpkg(plugin)
-    gpkg_path_str = str(gpkg_path)
 
     results: dict = {"successes": 0, "failures": []}
 
     for layer in layers:
-        if isinstance(layer, QgsVectorLayer):
+        if isinstance(layer, QgsVectorLayer) and layer.name() != EMPTY_LAYER_NAME:
             options = QgsVectorFileWriter.SaveVectorOptions()
             options.driverName = "GPKG"
-            options.layerName = layer.name()
+            options.layerName = check_existing_layer(gpkg_path, layer)
             options.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteLayer
 
-            error: tuple = QgsVectorFileWriter.writeAsVectorFormatV3(
-                layer, gpkg_path_str, project.transformContext(), options
+            error = QgsVectorFileWriter.writeAsVectorFormatV3(
+                layer, str(gpkg_path), project.transformContext(), options
             )
             if error[0] == QgsVectorFileWriter.WriterError.NoError:
                 results["successes"] += 1
+
+                # Load the new layer from the GeoPackage to clear its attributes
+                # (the attributes that are imported fom AutoCAD are useless)
+                uri: str = f"{gpkg_path}|layername={layer.name()}"
+                gpkg_layer = QgsVectorLayer(uri, layer.name(), "ogr")
+                if gpkg_layer.isValid():
+                    clear_attribute_table(gpkg_layer)
+                else:
+                    # This is an unlikely scenario if writing just succeeded,
+                    # but good to handle.
+                    plugin.iface.messageBar().pushMessage(
+                        "Warning",
+                        (
+                            f"Could not reload layer '{layer.name()}' from GeoPackage "
+                            "to clear attributes."
+                        ),
+                        level=Qgis.Warning,
+                    )
             else:
                 results["failures"].append((layer.name(), error[1]))
 
-    if results["successes"] > 0:
-        plugin.iface.messageBar().pushMessage(
-            "Success",
-            f"Copied {results['successes']} layers to GeoPackage.",
-            level=Qgis.Success,
-        )
-    if results["failures"]:
-        for layer_name, error_msg in results["failures"]:
-            plugin.iface.messageBar().pushMessage(
-                "Error",
-                f"Failed to copy layer '{layer_name}': {error_msg}",
-                level=Qgis.Critical,
-            )
+    message, level = generate_summary_message(
+        successes=results["successes"],
+        failures=results["failures"],
+        action="Moved",
+    )
+
+    display_summary_message(plugin, message, level)
 
 
 def add_layers_from_gpkg_to_project(plugin: QgisInterface) -> None:
@@ -130,8 +196,8 @@ def add_layers_from_gpkg_to_project(plugin: QgisInterface) -> None:
             continue
 
         # Add the layer to the project registry first, but not the legend
-        project.addMapLayer(gpkg_layer, False)
-        # Then, insert it at the top of the layer tree
+        project.addMapLayer(gpkg_layer, addToLegend=False)
+        # Then, insert it at the top of the layer tree (legend)
         root.insertLayer(0, gpkg_layer)
         added_layers.append(layer_name)
 
@@ -143,11 +209,12 @@ def add_layers_from_gpkg_to_project(plugin: QgisInterface) -> None:
             level=Qgis.Success,
         )
     if not_found_layers:
-        plural_s = "s" if len(not_found_layers) > 1 else ""
+        count: int = len(not_found_layers)
+        plural_s = "s" if count > 1 else ""
         layer_list: str = ", ".join(not_found_layers)
         plugin.iface.messageBar().pushMessage(
             "Warning",
-            f"Could not find {len(not_found_layers)} layer{plural_s} in GeoPackage: {layer_list}",
+            f"Could not find {count} layer{plural_s} in GeoPackage: {layer_list}",
             level=Qgis.Warning,
         )
 
