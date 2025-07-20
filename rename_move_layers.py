@@ -35,8 +35,8 @@ from qgis.PyQt.QtWidgets import (
 )
 
 from . import resources  # noqa: F401 - Import is necessary to load resources
-from .modules.functions_geopackage import move_layers_to_gpkg
-from .modules.functions_rename import rename_layers
+from .modules.geopackage import move_layers_to_gpkg
+from .modules.rename import rename_layers
 
 
 class RenameAndMoveLayersToGPKG:

@@ -17,7 +17,7 @@ from qgis.core import (
 )
 from qgis.gui import QgisInterface
 
-from .functions_general import (
+from .general import (
     display_summary_message,
     generate_summary_message,
     get_current_project,

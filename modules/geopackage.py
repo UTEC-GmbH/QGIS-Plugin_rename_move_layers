@@ -16,7 +16,8 @@ from qgis.core import (
 )
 from qgis.gui import QgisInterface
 
-from .functions_general import (
+from .general import (
+    clear_attribute_table,
     display_summary_message,
     generate_summary_message,
     get_current_project,
@@ -88,6 +89,24 @@ def add_layers_to_gpkg(plugin: QgisInterface) -> None:
             )
             if error[0] == QgsVectorFileWriter.WriterError.NoError:
                 results["successes"] += 1
+
+                # Load the new layer from the GeoPackage to clear its attributes
+                # (the attributes that are imported fom AutoCAD are useless)
+                uri: str = f"{gpkg_path_str}|layername={layer.name()}"
+                gpkg_layer = QgsVectorLayer(uri, layer.name(), "ogr")
+                if gpkg_layer.isValid():
+                    clear_attribute_table(gpkg_layer)
+                else:
+                    # This is an unlikely scenario if writing just succeeded,
+                    # but good to handle.
+                    plugin.iface.messageBar().pushMessage(
+                        "Warning",
+                        (
+                            f"Could not reload layer '{layer.name()}' from GeoPackage "
+                            "to clear attributes."
+                        ),
+                        level=Qgis.Warning,
+                    )
             else:
                 results["failures"].append((layer.name(), error[1]))
 

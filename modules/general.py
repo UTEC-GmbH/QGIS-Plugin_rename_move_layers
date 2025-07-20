@@ -3,14 +3,22 @@
 This module contains the general functions.
 """
 
+from typing import TYPE_CHECKING
+
 from qgis.core import (
     Qgis,
     QgsLayerTreeGroup,
     QgsLayerTreeLayer,
     QgsMapLayer,
     QgsProject,
+    QgsVectorDataProvider,
+    QgsVectorLayer,
+    QgsWkbTypes,
 )
 from qgis.gui import QgisInterface
+
+if TYPE_CHECKING:
+    from qgis._core import QgsDataProvider
 
 
 def get_current_project(plugin: QgisInterface) -> QgsProject:
@@ -57,6 +65,48 @@ def get_selected_layers(plugin: QgisInterface) -> list[QgsMapLayer]:
             selected_layers.add(node.layer())
 
     return list(selected_layers)
+
+
+def geometry_type_suffix(layer: QgsMapLayer) -> str:
+    """Get a short suffix for the geometry type of a layer.
+
+    suffix_map:
+    {
+        QgsWkbTypes.Point: "pt",
+        QgsWkbTypes.LineString: "l",
+        QgsWkbTypes.Polygon: "pg",
+        QgsWkbTypes.MultiPoint: "mpt",
+        QgsWkbTypes.MultiLineString: "ml",
+        QgsWkbTypes.MultiPolygon: "mpg",
+        QgsWkbTypes.NoGeometry: "",
+    }
+
+    :param layer: The layer to get the geometry type suffix for.
+    :returns: A string containing the geometry type suffix, or an empty string
+              if the layer is not a vector layer or has no geometry.
+    """
+    if not isinstance(layer, QgsVectorLayer):
+        return ""
+
+    geom_type: QgsWkbTypes.GeometryType = layer.geometryType()
+
+    suffix_map: dict[QgsWkbTypes.GeometryType, str] = {
+        QgsWkbTypes.Point: "pt",
+        QgsWkbTypes.LineString: "l",
+        QgsWkbTypes.Polygon: "pg",
+        QgsWkbTypes.MultiPoint: "mpt",
+        QgsWkbTypes.MultiLineString: "ml",
+        QgsWkbTypes.MultiPolygon: "mpg",
+        QgsWkbTypes.NoGeometry: "",
+    }
+
+    suffix: str | None = suffix_map.get(geom_type)
+
+    if suffix is None:
+        # Fallback for unhandled geometry types to return a sensible default
+        return f" - {geom_type.name().lower()}"
+
+    return f" - {suffix}"
 
 
 def generate_summary_message(
@@ -130,3 +180,25 @@ def display_summary_message(plugin: QgisInterface, message: str, level: int) -> 
     plugin.iface.messageBar().pushMessage(
         "Operation Summary", message, level=level, duration=10
     )
+
+
+def clear_attribute_table(layer: QgsMapLayer) -> None:
+    """Clear the attribute table of a QGIS layer by deleting all columns.
+
+    :param layer: The layer whose attribute table should be cleared.
+    """
+    if not isinstance(layer, QgsVectorLayer):
+        # This function only applies to vector layers.
+        return
+
+    provider: QgsDataProvider | None = layer.dataProvider()
+    if not provider:
+        return
+
+    # Check if the provider supports deleting attributes.
+    if not provider.capabilities() & QgsVectorDataProvider.DeleteAttributes:
+        return
+
+    if field_indices := list(range(layer.fields().count())):
+        provider.deleteAttributes(field_indices)
+        layer.updateFields()
