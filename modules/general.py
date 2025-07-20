@@ -56,10 +56,18 @@ def get_selected_layers(plugin: QgisInterface) -> list[QgsMapLayer]:
 
     for node in selected_nodes:
         if isinstance(node, QgsLayerTreeGroup):
-            # If a group is selected, add all its layers recursively.
+            # If a group is selected, add all its layers that are not empty recursively.
             for layer_node in node.findLayers():
-                selected_layers.add(layer_node.layer())
-        elif isinstance(node, QgsLayerTreeLayer):
+                layer: QgsMapLayer | None = layer_node.layer()
+                if layer and layer.name() != EMPTY_LAYER_NAME:
+                    selected_layers.add(layer_node.layer())
+        elif all(
+            [
+                isinstance(node, QgsLayerTreeLayer),
+                node.layer(),
+                node.layer().name() != EMPTY_LAYER_NAME,
+            ]
+        ):
             # Add the single selected layer.
             selected_layers.add(node.layer())
 
@@ -159,3 +167,11 @@ def clear_attribute_table(layer: QgsMapLayer) -> None:
     if field_indices := list(range(layer.fields().count())):
         provider.deleteAttributes(field_indices)
         layer.updateFields()
+
+
+EMPTY_LAYER_NAME: str = "empty layer"
+GEOMETRY_SUFFIX_MAP: dict[Qgis.GeometryType, str] = {
+    Qgis.GeometryType.Line: "l",
+    Qgis.GeometryType.Point: "pt",
+    Qgis.GeometryType.Polygon: "pg",
+}

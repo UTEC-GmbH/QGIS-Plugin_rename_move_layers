@@ -6,6 +6,7 @@ in a QGIS project based on their group names.
 
 import contextlib
 import re
+from collections import defaultdict
 from typing import TYPE_CHECKING
 
 from qgis.core import (
@@ -20,6 +21,8 @@ from qgis.core import (
 from qgis.gui import QgisInterface
 
 from .general import (
+    EMPTY_LAYER_NAME,
+    GEOMETRY_SUFFIX_MAP,
     display_summary_message,
     generate_summary_message,
     get_current_project,
@@ -54,19 +57,23 @@ def fix_layer_name(name: str) -> str:
 
 
 def prepare_rename_plan(plugin: QgisInterface) -> tuple[list, list, list, list]:
-    """Rename the selected layers to their parent group names.
+    """Prepare a plan to rename selected layers based on their parent group.
 
-    Process all selected layers and provides a single summary message at the end.
+    Empty vector layers are planned to be renamed to 'empty layer'. For other
+    layers, the new name is based on their parent group name.
+
+    If multiple layers would be renamed to the same name (e.g., they are in
+    the same group, or multiple layers are empty), a geometry type suffix is
+    appended to differentiate them.
     """
     layers_to_process: list[QgsMapLayer] = get_selected_layers(plugin)
 
-    rename_plan: list = []  # List of (layer, old_name, new_name)
-    failed_renames: list = []  # List of layer names that could not be renamed
-    skipped_layers: list[str] = []  # List of layer names that are not in a group
-    error_layers: list[str] = []  # List of layer names that could not be found
+    # Using defaultdict to group layers by their prospective new name
+    potential_renames = defaultdict(list)
+    skipped_layers: list[str] = []
+    error_layers: list[str] = []
 
     project: QgsProject = get_current_project(plugin)
-
     root: QgsLayerTree | None = project.layerTreeRoot()
     if root is None:
         error_msg: str = "No Layer Tree is available."
@@ -74,7 +81,12 @@ def prepare_rename_plan(plugin: QgisInterface) -> tuple[list, list, list, list]:
         raise RuntimeError(error_msg)
 
     for layer in layers_to_process:
-        node: QgsLayerTreeLayer = root.findLayer(layer.id())
+        # If a vector layer is empty, plan to rename it to "empty layer".
+        if isinstance(layer, QgsVectorLayer) and layer.featureCount() == 0:
+            potential_renames[EMPTY_LAYER_NAME].append(layer)
+            continue
+
+        node: QgsLayerTreeLayer | None = root.findLayer(layer.id())
         if not node:
             error_layers.append(layer.name())
             continue
@@ -82,13 +94,32 @@ def prepare_rename_plan(plugin: QgisInterface) -> tuple[list, list, list, list]:
         parent: QgsLayerTreeNode | None = node.parent()
         if isinstance(parent, QgsLayerTreeGroup):
             raw_group_name: str = parent.name()
-            current_layer_name: str = layer.name()
-            new_layer_name: str = fix_layer_name(raw_group_name)
-
-            if current_layer_name != new_layer_name:
-                rename_plan.append((layer, current_layer_name, new_layer_name))
+            new_name_base: str = fix_layer_name(raw_group_name)
+            potential_renames[new_name_base].append(layer)
         else:
             skipped_layers.append(layer.name())
+
+    # Build the final rename plan, handling name collisions
+    rename_plan: list = []
+    for new_name_base, layers in potential_renames.items():
+        if len(layers) > 1:  # Name collision detected
+            for layer in layers:
+                suffix: str = (
+                    ""
+                    if new_name_base == EMPTY_LAYER_NAME
+                    else geometry_type_suffix(layer)
+                )
+                final_new_name: str = f"{new_name_base}{suffix}"
+                if layer.name() != final_new_name:
+                    rename_plan.append((layer, layer.name(), final_new_name))
+        else:  # No collision
+            layer = layers[0]
+            if layer.name() != new_name_base:
+                rename_plan.append((layer, layer.name(), new_name_base))
+
+    # The failed_renames list is populated by execute_rename_plan,
+    # so initialize it as empty.
+    failed_renames: list = []
 
     return rename_plan, skipped_layers, failed_renames, error_layers
 
@@ -142,13 +173,6 @@ def rename_layers(plugin: QgisInterface) -> None:
     )
 
     display_summary_message(plugin, message, level)
-
-
-GEOMETRY_SUFFIX_MAP: dict[Qgis.GeometryType, str] = {
-    Qgis.GeometryType.Point: "pt",
-    Qgis.GeometryType.Line: "l",
-    Qgis.GeometryType.Polygon: "pg",
-}
 
 
 def geometry_type_suffix(layer: QgsMapLayer) -> str:

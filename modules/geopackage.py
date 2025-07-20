@@ -17,6 +17,7 @@ from qgis.core import (
 from qgis.gui import QgisInterface
 
 from .general import (
+    EMPTY_LAYER_NAME,
     clear_attribute_table,
     display_summary_message,
     generate_summary_message,
@@ -93,7 +94,7 @@ def add_layers_to_gpkg(plugin: QgisInterface) -> None:
     results: dict = {"successes": 0, "failures": []}
 
     for layer in layers:
-        if isinstance(layer, QgsVectorLayer):
+        if isinstance(layer, QgsVectorLayer) and layer.name() != EMPTY_LAYER_NAME:
             options = QgsVectorFileWriter.SaveVectorOptions()
             options.driverName = "GPKG"
             options.layerName = check_existing_layer(gpkg_path, layer)
