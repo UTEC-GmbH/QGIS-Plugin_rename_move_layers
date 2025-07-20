@@ -14,6 +14,8 @@ from qgis.core import (
     QgsLayerTreeLayer,
     QgsMapLayer,
     QgsProject,
+    QgsVectorLayer,
+    QgsWkbTypes,
 )
 from qgis.gui import QgisInterface
 
@@ -140,3 +142,25 @@ def rename_layers(plugin: QgisInterface) -> None:
     )
 
     display_summary_message(plugin, message, level)
+
+
+GEOMETRY_SUFFIX_MAP: dict[Qgis.GeometryType, str] = {
+    Qgis.GeometryType.Point: "pt",
+    Qgis.GeometryType.Line: "l",
+    Qgis.GeometryType.Polygon: "pg",
+}
+
+
+def geometry_type_suffix(layer: QgsMapLayer) -> str:
+    """Get a short suffix for the geometry type of a layer.
+
+    :param layer: The layer to get the geometry type suffix for.
+    :returns: A string containing the geometry type suffix.
+    """
+    if not isinstance(layer, QgsVectorLayer):
+        return ""
+
+    geom_type: Qgis.GeometryType = QgsWkbTypes.geometryType(layer.wkbType())
+    geom_display_string: str = QgsWkbTypes.geometryDisplayString(geom_type)
+
+    return f" - {GEOMETRY_SUFFIX_MAP.get(geom_type, geom_display_string)}"
