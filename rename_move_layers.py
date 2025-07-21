@@ -35,6 +35,7 @@ from qgis.PyQt.QtWidgets import (
 )
 
 from . import resources  # noqa: F401 - Import is necessary to load resources
+from .modules.general import raise_runtime_error
 from .modules.geopackage import move_layers_to_gpkg
 from .modules.rename import rename_layers
 
@@ -134,11 +135,11 @@ class RenameAndMoveLayersToGPKG:
 
     def initGui(self) -> None:  # noqa: N802
         """Create the menu entries and toolbar icons for the plugin."""
+
         # Create a menu for the plugin in the "Plugins" menu
         self.plugin_menu = QMenu(self.menu, self.iface.pluginMenu())
         if self.plugin_menu is None:
-            error_msg: str = "Failed to create the plugin menu."
-            raise RuntimeError(error_msg)
+            raise_runtime_error("Failed to create the plugin menu.")
 
         self.plugin_menu.setIcon(QIcon(self.icon_path))
 
@@ -195,8 +196,8 @@ class RenameAndMoveLayersToGPKG:
         toolbar_button.setMenu(self.plugin_menu)
         toolbar_button.setDefaultAction(rename_action)  # Use an action's icon
         toolbar_button.setPopupMode(QToolButton.InstantPopup)
-        self.iface.addToolBarWidget(toolbar_button)
-        self.actions.append(toolbar_button)  # Keep track of it for removal
+        toolbar_action = self.iface.addToolBarWidget(toolbar_button)
+        self.actions.append(toolbar_action)
 
     def unload(self) -> None:
         """Plugin unload method.
@@ -204,12 +205,10 @@ class RenameAndMoveLayersToGPKG:
         Called when the plugin is unloaded according to the plugin QGIS metadata.
         """
         # Remove toolbar icons for all actions
-        for obj in self.actions:
-            if isinstance(obj, QAction):
-                self.iface.removeToolBarIcon(obj)
+        for action in self.actions:
+            self.iface.removeToolBarIcon(action)
 
         # Remove the plugin menu from the "Plugins" menu.
-        # Remove the menu, which will automatically remove its actions.
         if self.plugin_menu:
             self.iface.pluginMenu().removeAction(self.plugin_menu.menuAction())  # type: ignore[]
 
