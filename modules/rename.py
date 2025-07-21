@@ -14,7 +14,6 @@ from qgis.core import (
     QgsLayerTreeGroup,
     QgsLayerTreeLayer,
     QgsMapLayer,
-    QgsMessageLog,
     QgsProject,
     QgsVectorLayer,
     QgsWkbTypes,
@@ -28,6 +27,7 @@ from .general import (
     generate_summary_message,
     get_current_project,
     get_selected_layers,
+    raise_runtime_error,
 )
 
 if TYPE_CHECKING:
@@ -74,12 +74,10 @@ def prepare_rename_plan(plugin: QgisInterface) -> tuple[list, list, list, list]:
     skipped_layers: list[str] = []
     error_layers: list[str] = []
 
-    project: QgsProject = get_current_project(plugin)
+    project: QgsProject = get_current_project()
     root: QgsLayerTree | None = project.layerTreeRoot()
     if root is None:
-        error_msg: str = "No Layer Tree is available."
-        QgsMessageLog.logMessage(error_msg, "Error", level=Qgis.Critical)
-        raise RuntimeError(error_msg)
+        raise_runtime_error("No Layer Tree is available.")
 
     for layer in layers_to_process:
         # If a vector layer is empty, plan to rename it to "empty layer".

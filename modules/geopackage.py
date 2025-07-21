@@ -26,11 +26,12 @@ from .general import (
     generate_summary_message,
     get_current_project,
     get_selected_layers,
+    raise_runtime_error,
 )
 from .rename import geometry_type_suffix
 
 
-def project_gpkg(plugin: QgisInterface) -> Path:
+def project_gpkg() -> Path:
     """Check if a GeoPackage with the same name as the project
     exists in the project folder and creates it if not.
 
@@ -41,14 +42,10 @@ def project_gpkg(plugin: QgisInterface) -> Path:
     :raises RuntimeError: If the project is not saved.
     :raises IOError: If the GeoPackage file cannot be created.
     """
-    project: QgsProject = get_current_project(plugin)
+    project: QgsProject = get_current_project()
     project_path_str: str = project.fileName()
     if not project_path_str:
-        error_msg: str = "Project is not saved. Please save the project first."
-        plugin.iface.messageBar().pushMessage(
-            "Error", error_msg, level=Qgis.Critical, duration=5
-        )
-        raise RuntimeError(error_msg)
+        raise_runtime_error("Project is not saved. Please save the project first.")
 
     project_path: Path = Path(project_path_str)
     gpkg_path: Path = project_path.with_suffix(".gpkg")
@@ -57,11 +54,7 @@ def project_gpkg(plugin: QgisInterface) -> Path:
         driver = ogr.GetDriverByName("GPKG")
         data_source = driver.CreateDataSource(str(gpkg_path))
         if data_source is None:
-            error_msg = f"Failed to create GeoPackage at: {gpkg_path}"
-            plugin.iface.messageBar().pushMessage(
-                "Error", error_msg, level=Qgis.Critical
-            )
-            raise OSError(error_msg)
+            raise_runtime_error(f"Failed to create GeoPackage at: {gpkg_path}")
 
         # Dereference the data source to close the file and release the lock.
         data_source = None
@@ -119,9 +112,9 @@ def check_existing_layer(gpkg_path: Path, layer: QgsMapLayer) -> str:
 def add_layers_to_gpkg(plugin: QgisInterface) -> None:
     """Add the selected layers to the project's GeoPackage."""
 
-    project: QgsProject = get_current_project(plugin)
+    project: QgsProject = get_current_project()
     layers: list[QgsMapLayer] = get_selected_layers(plugin)
-    gpkg_path: Path = project_gpkg(plugin)
+    gpkg_path: Path = project_gpkg()
 
     results: dict = {"successes": 0, "failures": []}
 
@@ -169,9 +162,9 @@ def add_layers_to_gpkg(plugin: QgisInterface) -> None:
 
 def add_layers_from_gpkg_to_project(plugin: QgisInterface) -> None:
     """Add the selected layers from the project's GeoPackage."""
-    project: QgsProject = get_current_project(plugin)
+    project: QgsProject = get_current_project()
     selected_layers: list[QgsMapLayer] = get_selected_layers(plugin)
-    gpkg_path: Path = project_gpkg(plugin)
+    gpkg_path: Path = project_gpkg()
     gpkg_path_str = str(gpkg_path)
 
     root: QgsLayerTree | None = project.layerTreeRoot()
@@ -195,9 +188,9 @@ def add_layers_from_gpkg_to_project(plugin: QgisInterface) -> None:
             not_found_layers.append(layer_name)
             continue
 
-        # Add the layer to the project registry first, but not the legend
+        # Add the layer to the project registry first, but not the layer tree
         project.addMapLayer(gpkg_layer, addToLegend=False)
-        # Then, insert it at the top of the layer tree (legend)
+        # Then, insert it at the top of the layer tree
         root.insertLayer(0, gpkg_layer)
         added_layers.append(layer_name)
 

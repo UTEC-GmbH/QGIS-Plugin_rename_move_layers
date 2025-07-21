@@ -3,13 +3,14 @@
 This module contains the general functions.
 """
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NoReturn
 
 from qgis.core import (
     Qgis,
     QgsLayerTreeGroup,
     QgsLayerTreeLayer,
     QgsMapLayer,
+    QgsMessageLog,
     QgsProject,
     QgsVectorDataProvider,
     QgsVectorLayer,
@@ -17,26 +18,40 @@ from qgis.core import (
 from qgis.gui import QgisInterface
 
 if TYPE_CHECKING:
-    from qgis._core import QgsDataProvider
+    from qgis.core import QgsDataProvider
+
+EMPTY_LAYER_NAME: str = "empty layer"
+GEOMETRY_SUFFIX_MAP: dict[Qgis.GeometryType, str] = {
+    Qgis.GeometryType.Line: "l",
+    Qgis.GeometryType.Point: "pt",
+    Qgis.GeometryType.Polygon: "pg",
+}
 
 
-def get_current_project(plugin: QgisInterface) -> QgsProject:
+def raise_runtime_error(error_msg: str) -> NoReturn:
+    """Log a critical error and raise a RuntimeError.
+
+    This helper function standardizes error handling by ensuring that a critical
+    error is raised as a Python exception to halt the current operation.
+
+    :param error_msg: The error message to display and include in the exception.
+    :raises RuntimeError: Always raises a RuntimeError with the provided error message.
+    """
+    QgsMessageLog.logMessage(error_msg, "Error", level=Qgis.Critical)
+    raise RuntimeError(error_msg)
+
+
+def get_current_project() -> QgsProject:
     """Check if a QGIS project is currently open and returns the project instance.
 
-    If no project is open, displays an error message using the provided QGIS
-    interface plugin.
-
-    Args:
-    plugin (QgisInterface): The QGIS interface plugin used to display messages.
+    If no project is open, an error message is logged.
 
     Returns:
-    QgsProject | None: The current QGIS project instance if open, otherwise None.
+    QgsProject: The current QGIS project instance.
     """
     project: QgsProject | None = QgsProject.instance()
     if project is None:
-        error_msg: str = "No QGIS project is currently open."
-        plugin.iface.messageBar().pushMessage("Error", error_msg, level=Qgis.Critical)
-        raise RuntimeError(error_msg)
+        raise_runtime_error("No QGIS project is currently open.")
 
     return project
 
@@ -50,9 +65,7 @@ def get_selected_layers(plugin: QgisInterface) -> list[QgsMapLayer]:
     selected_nodes = plugin.iface.layerTreeView().selectedNodes()
 
     if not selected_nodes:
-        error_msg: str = "No layers or groups selected."
-        plugin.iface.messageBar().pushMessage("Warning", error_msg, level=Qgis.Warning)
-        raise RuntimeError(error_msg)
+        raise_runtime_error("No layers or groups selected.")
 
     for node in selected_nodes:
         if isinstance(node, QgsLayerTreeGroup):
@@ -70,8 +83,36 @@ def get_selected_layers(plugin: QgisInterface) -> list[QgsMapLayer]:
         ):
             # Add the single selected layer.
             selected_layers.add(node.layer())
+        else:
+            QgsMessageLog.logMessage(
+                f"Unexpected node type in selection: {type(node)}",
+                "Error",
+                level=Qgis.Warning,
+            )
 
     return list(selected_layers)
+
+
+def clear_attribute_table(layer: QgsMapLayer) -> None:
+    """Clear the attribute table of a QGIS layer by deleting all columns.
+
+    :param layer: The layer whose attribute table should be cleared.
+    """
+    if not isinstance(layer, QgsVectorLayer):
+        # This function only applies to vector layers.
+        return
+
+    provider: QgsDataProvider | None = layer.dataProvider()
+    if not provider:
+        return
+
+    # Check if the provider supports deleting attributes.
+    if not provider.capabilities() & QgsVectorDataProvider.DeleteAttributes:
+        return
+
+    if field_indices := list(range(layer.fields().count())):
+        provider.deleteAttributes(field_indices)
+        layer.updateFields()
 
 
 def generate_summary_message(
@@ -98,7 +139,7 @@ def generate_summary_message(
     :returns: A tuple containing the summary message (str) and the message level (int).
     """
     message_parts: list[str] = []
-    message_level: int = Qgis.Success
+    message_level: Qgis.MessageLevel = Qgis.Success
     plural: str = ""
 
     if successes:
@@ -109,6 +150,10 @@ def generate_summary_message(
         plural = "s" if len(skipped) > 1 else ""
         message_parts.append(f"Skipped {len(skipped)} layer{plural}.")
         message_level = Qgis.Warning
+        for layer in skipped:
+            QgsMessageLog.logMessage(
+                f"Skipped layer '{layer}'", "Operation", level=message_level
+            )
 
     if failures:
         plural = "s" if len(failures) > 1 else ""
@@ -116,11 +161,21 @@ def generate_summary_message(
             f"Could not {action.lower()} {len(failures)} layer{plural}."
         )
         message_level = Qgis.Warning
+        for failure in failures:
+            QgsMessageLog.logMessage(
+                f"Failed to {action.lower()} {failure[0]}: {failure[2]}",
+                "Operation",
+                level=message_level,
+            )
 
     if not_found:
         plural = "s" if len(not_found) > 1 else ""
         message_parts.append(f"Could not find {len(not_found)} layer{plural}.")
         message_level = Qgis.Critical
+        for layer in not_found:  # assuming you have a list of not found layers
+            QgsMessageLog.logMessage(
+                f"Could not find {layer}", "Operation", level=message_level
+            )
 
     if not message_parts:  # If no operations were reported
         message_parts.append(
@@ -145,33 +200,3 @@ def display_summary_message(plugin: QgisInterface, message: str, level: int) -> 
     plugin.iface.messageBar().pushMessage(
         "Operation Summary", message, level=level, duration=10
     )
-
-
-def clear_attribute_table(layer: QgsMapLayer) -> None:
-    """Clear the attribute table of a QGIS layer by deleting all columns.
-
-    :param layer: The layer whose attribute table should be cleared.
-    """
-    if not isinstance(layer, QgsVectorLayer):
-        # This function only applies to vector layers.
-        return
-
-    provider: QgsDataProvider | None = layer.dataProvider()
-    if not provider:
-        return
-
-    # Check if the provider supports deleting attributes.
-    if not provider.capabilities() & QgsVectorDataProvider.DeleteAttributes:
-        return
-
-    if field_indices := list(range(layer.fields().count())):
-        provider.deleteAttributes(field_indices)
-        layer.updateFields()
-
-
-EMPTY_LAYER_NAME: str = "empty layer"
-GEOMETRY_SUFFIX_MAP: dict[Qgis.GeometryType, str] = {
-    Qgis.GeometryType.Line: "l",
-    Qgis.GeometryType.Point: "pt",
-    Qgis.GeometryType.Polygon: "pg",
-}
