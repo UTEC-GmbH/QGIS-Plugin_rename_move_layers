@@ -1,4 +1,3 @@
-# coding=utf-8
 """Resources test.
 
 .. note:: This program is free software; you can redistribute it and/or modify
@@ -8,7 +7,7 @@
 
 """
 
-__author__ = "lasinludwig@gmail.com"
+__author__ = "immerse-vowel-dole@duck.com"
 __date__ = "2025-03-04"
 __copyright__ = "Copyright 2025, Florian Ludwig"
 
@@ -22,11 +21,9 @@ class MoveLayersToGPKGDialogTest(unittest.TestCase):
 
     def setUp(self):
         """Runs before each test."""
-        pass
 
     def tearDown(self):
         """Runs after each test."""
-        pass
 
     def test_icon_png(self):
         """Test we can click OK."""

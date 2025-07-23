@@ -8,7 +8,7 @@ qgisMinimumVersion=3.0
 description=This plugin renames selected layers (if they are nested in groups) and moves them to a new GeoPackage
 version=0.1
 author=Florian Ludwig
-email=lasinludwig@gmail.com
+email=immerse-vowel-dole@duck.com
 
 about=When importing layers from a dxf-file, you get a group for each layer and the layers are named "line" or "hatch" ... This plugin renames selected layers (after importing) to their group names, moves them to a new GeoPackage, deletes the original layers and adds the new layers from the GeoPackage.
 

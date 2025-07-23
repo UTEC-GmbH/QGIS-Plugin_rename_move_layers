@@ -7,7 +7,7 @@
                              -------------------
         begin                : 2025-03-04
         copyright            : (C) 2025 by Florian Ludwig
-        email                : lasinludwig@gmail.com
+        email                : immerse-vowel-dole@duck.com
         git sha              : $Format:%H$
  ***************************************************************************/
 
