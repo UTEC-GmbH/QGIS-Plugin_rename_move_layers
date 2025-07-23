@@ -10,7 +10,7 @@
         begin                : 2025-03-04
         git sha              : $Format:%H$
         copyright            : (C) 2025 by Florian Ludwig
-        email                : lasinludwig@gmail.com
+        email                : immerse-vowel-dole@duck.com
  ***************************************************************************
 
 ***************************************************************************
@@ -53,7 +53,7 @@ class RenameAndMoveLayersToGPKG:
         self.plugin_dir: Path = Path(__file__).parent
         self.actions: list = []
         # Using a shorter name for the menu for a cleaner look
-        self.menu: str = "Layer Tools"
+        self.menu: str = "Rename and Move Layers"
         self.plugin_menu: QMenu | None = None
         self.dlg = None
         self.icon_path = ":/plugins/rename_move_layers/icon.png"

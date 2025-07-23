@@ -6,16 +6,6 @@
         "C:\\Program Files\\QGIS 3.40.7\\apps\\Python312\\Lib\\site-packages"
     ],
     "python.envFile": "${workspaceFolder}/.env",
-    "python.analysis.packageIndexDepths": [
-        {
-            "name": "qgis",
-            "depth": 4
-        },
-        {
-            "name": "PyQt5",
-            "depth": 4
-        }
-    ],
     "pylint.args": [
         "--rcfile=${workspaceFolder}/.pylintrc"
     ]

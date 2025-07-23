@@ -1,4 +1,3 @@
-# coding=utf-8
 """Dialog test.
 
 .. note:: This program is free software; you can redistribute it and/or modify
@@ -8,17 +7,16 @@
 
 """
 
-__author__ = 'lasinludwig@gmail.com'
-__date__ = '2025-03-04'
-__copyright__ = 'Copyright 2025, Florian Ludwig'
+__author__ = "immerse-vowel-dole@duck.com"
+__date__ = "2025-03-04"
+__copyright__ = "Copyright 2025, Florian Ludwig"
 
 import unittest
 
-from qgis.PyQt.QtGui import QDialogButtonBox, QDialog
-
 from move_layers_to_gpkg_dialog import MoveLayersToGPKGDialog
-
+from qgis.PyQt.QtGui import QDialog, QDialogButtonBox
 from utilities import get_qgis_app
+
 QGIS_APP = get_qgis_app()
 
 
@@ -48,8 +46,8 @@ class MoveLayersToGPKGDialogTest(unittest.TestCase):
         result = self.dialog.result()
         self.assertEqual(result, QDialog.Rejected)
 
+
 if __name__ == "__main__":
     suite = unittest.makeSuite(MoveLayersToGPKGDialogTest)
     runner = unittest.TextTestRunner(verbosity=2)
     runner.run(suite)
-
