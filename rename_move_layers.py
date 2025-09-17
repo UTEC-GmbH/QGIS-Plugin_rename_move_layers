@@ -191,7 +191,7 @@ class RenameAndMoveLayersToGPKG:  # pylint: disable=too-many-instance-attributes
             ),
             whats_this=QCoreApplication.translate(
                 "Menu_whats",
-                "Renames selected layers to match their parent group's name.",
+                "Renames selected layers to match their parent group's name."
             ),
         )
         self.plugin_menu.addAction(rename_action)
@@ -207,16 +207,14 @@ class RenameAndMoveLayersToGPKG:  # pylint: disable=too-many-instance-attributes
             status_tip=QCoreApplication.translate(
                 "Menu_tip", "Move selected layers to the project's GeoPackage"
             ),
-            whats_this=(
-                QCoreApplication.translate(
+            whats_this=QCoreApplication.translate(
                     "Menu_whats",
                     "Copies selected layers to the project's GeoPackage "
                     "(a GeoPackage in the project folder "
                     "with the same name as the project file) "
                     "and adds them back from the GeoPackage "
-                    "to the layer tree of the project.",
-                )
-            ),
+                    "to the layer tree of the project."
+                ),
         )
         self.plugin_menu.addAction(move_action)
 
@@ -241,7 +239,7 @@ class RenameAndMoveLayersToGPKG:  # pylint: disable=too-many-instance-attributes
                 "(a GeoPackage in the project folder "
                 "with the same name as the project file) "
                 "and adds them back from the GeoPackage "
-                "to the layer tree of the project.",
+                "to the layer tree of the project."
             ),
         )
         self.plugin_menu.addAction(rename_move_action)

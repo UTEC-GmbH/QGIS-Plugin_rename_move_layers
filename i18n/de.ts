@@ -14,7 +14,7 @@
         <translation>Layer in GeoPackage verschieben</translation>
     </message>
     <message>
-        <location filename="../rename_move_layers.py" line="224"/>
+        <location filename="../rename_move_layers.py" line="222"/>
         <source>Rename Layers and Move them to GeoPackage</source>
         <translation>Layer umbenennen und in GeoPackage verschieben</translation>
     </message>
@@ -30,6 +30,24 @@
         <location filename="../rename_move_layers.py" line="200"/>
         <source>Move selected layers to the project&apos;s GeoPackage</source>
         <translation>Gewählte Layer in das Projekt-GeoPackage verschieben</translation>
+    </message>
+</context>
+<context>
+    <name>Menu_whats</name>
+    <message>
+        <location filename="../rename_move_layers.py" line="182"/>
+        <source>Renames selected layers to match their parent group&apos;s name.</source>
+        <translation>Benennt die gewählten Layer gemäß ihrer Gruppen um.</translation>
+    </message>
+    <message>
+        <location filename="../rename_move_layers.py" line="200"/>
+        <source>Copies selected layers to the project&apos;s GeoPackage (a GeoPackage in the project folder with the same name as the project file) and adds them back from the GeoPackage to the layer tree of the project.</source>
+        <translation>Kopiert die gewählten Layer in das Projekt-GeoPackage (ein GeoPackage im Projektordner mit dem selben Namen wie die Projektdatei) und fügt sie aus dem GeoPackage in das Projekt ein.</translation>
+    </message>
+    <message>
+        <location filename="../rename_move_layers.py" line="222"/>
+        <source>Renames the selected layers to their parent group names, then copies them to the project&apos;s GeoPackage (a GeoPackage in the project folder with the same name as the project file) and adds them back from the GeoPackage to the layer tree of the project.</source>
+        <translation>Benennt die gewählten Layer gemäß ihrer Gruppe um, kopiert sie in das Projekt-GeoPackage (ein GeoPackage im Projektordner mit dem selben Namen wie die Projektdatei) und fügt sie aus dem GeoPackage in das Projekt ein.</translation>
     </message>
 </context>
 <context>
@@ -69,6 +87,11 @@
         <source>Failed to create GeoPackage at: {0}</source>
         <translation>Konnte das Geopackage nicht in folgendem Pfad erstellen: {0}</translation>
     </message>
+    <message>
+        <location filename="../modules/logs_and_errors.py" line="160"/>
+        <source>Error</source>
+        <translation>Fehler</translation>
+    </message>
 </context>
 <context>
     <name>UserError</name>
@@ -76,6 +99,11 @@
         <location filename="../modules/general.py" line="80"/>
         <source>No layers or groups selected.</source>
         <translation>Keine Layer oder Layer-Gruppen ausgewählt.</translation>
+    </message>
+    <message>
+        <location filename="../modules/logs_and_errors.py" line="184"/>
+        <source>Error</source>
+        <translation>Fehler</translation>
     </message>
 </context>
 <context>
@@ -97,34 +125,39 @@
 <context>
     <name>log_summary</name>
     <message>
-        <location filename="../modules/logs_and_errors.py" line="59"/>
+        <location filename="../modules/logs_and_errors.py" line="72"/>
         <source>{action} {successes} layer(s).</source>
         <translation>{action} {successes} Layer.</translation>
     </message>
     <message>
-        <location filename="../modules/logs_and_errors.py" line="67"/>
+        <location filename="../modules/logs_and_errors.py" line="80"/>
         <source>Skipped {num_skipped} layer(s).</source>
         <translation>{num_skipped} Layer übersprungen.</translation>
     </message>
     <message>
-        <location filename="../modules/logs_and_errors.py" line="73"/>
+        <location filename="../modules/logs_and_errors.py" line="86"/>
         <source>Skipped layer &apos;{layer}&apos;</source>
         <translation>Layer '{layer}' übersprungen</translation>
     </message>
     <message>
-        <location filename="../modules/logs_and_errors.py" line="82"/>
+        <location filename="../modules/logs_and_errors.py" line="95"/>
         <source>Failed to {action} {num_failures} layer(s).</source>
         <translation>Aktion '{action}' {num_failures} x fehlgeschlagen.</translation>
     </message>
     <message>
-        <location filename="../modules/logs_and_errors.py" line="98"/>
+        <location filename="../modules/logs_and_errors.py" line="111"/>
         <source>Could not find {len_not_found} layer(s).</source>
         <translation>Konnte {len_not_found} Layer nicht finden.</translation>
     </message>
     <message>
-        <location filename="../modules/logs_and_errors.py" line="104"/>
+        <location filename="../modules/logs_and_errors.py" line="117"/>
         <source>Could not find &apos;{layer}&apos;</source>
         <translation>Konnte Layer '{layer}' nicht finden</translation>
+    </message>
+    <message>
+        <location filename="../modules/logs_and_errors.py" line="134"/>
+        <source>Summary</source>
+        <translation>Zusammenfassung</translation>
     </message>
 </context>
 </TS>

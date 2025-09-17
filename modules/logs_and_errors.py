@@ -29,13 +29,26 @@ def log_debug(message: str, msg_level: Qgis.MessageLevel = Qgis.Info) -> None:
     )
 
 
+def push_message(
+    title: str, message: str, level: Qgis.MessageLevel = Qgis.Info
+) -> None:
+    """Display a message in the QGIS message bar.
+
+    :param title: The title of the message.
+    :param message: The message content to display.
+    :param level: The message level (e.g., Info, Warning, Critical).
+    """
+    if iface and (msg_bar := iface.messageBar()):
+        msg_bar.pushMessage(title, message, level=level, duration=10)
+
+
 def log_summary_message(
     successes: int = 0,
     skipped: list | None = None,
     failures: list | None = None,
     not_found: list | None = None,
     action: str = "Operation",
-) -> tuple[str, Qgis.MessageLevel]:
+) -> None:
     """Generate a summary message for the user based on operation results.
 
     This function constructs a user-friendly message summarizing the outcome
@@ -118,20 +131,11 @@ def log_summary_message(
             )
         )
 
-    return " ".join(message_parts), message_level
-
-
-def push_message(
-    title: str, message: str, level: Qgis.MessageLevel = Qgis.Info
-) -> None:
-    """Display a message in the QGIS message bar.
-
-    :param title: The title of the message.
-    :param message: The message content to display.
-    :param level: The message level (e.g., Info, Warning, Critical).
-    """
-    if iface and (msg_bar := iface.messageBar()):
-        msg_bar.pushMessage(title, message, level=level, duration=10)
+    push_message(
+        QCoreApplication.translate("log_summary", "Summary"),
+        " ".join(message_parts),
+        message_level,
+    )
 
 
 class CustomRuntimeError(Exception):
@@ -153,7 +157,11 @@ def raise_runtime_error(error_msg: str) -> NoReturn:
         lineno: int = frame.f_back.f_lineno
         error_msg = f"{error_msg} ({filename}: {lineno})"
 
-    push_message("Error", error_msg, level=Qgis.Critical)
+    push_message(
+        QCoreApplication.translate("RuntimeError", "Error"),
+        error_msg,
+        level=Qgis.Critical,
+    )
 
     QgsMessageLog.logMessage(error_msg, "Error", level=Qgis.Critical)
     raise CustomRuntimeError(error_msg)
@@ -173,7 +181,9 @@ def raise_user_error(error_msg: str) -> NoReturn:
     :raises CustomUserError: Always raises a UserError with the provided error message.
     """
 
-    push_message("Error", error_msg, level=Qgis.Critical)
+    push_message(
+        QCoreApplication.translate("UserError", "Error"), error_msg, level=Qgis.Critical
+    )
 
     QgsMessageLog.logMessage(error_msg, "Error", level=Qgis.Critical)
     raise CustomUserError(error_msg)
