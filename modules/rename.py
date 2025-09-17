@@ -18,17 +18,15 @@ from qgis.core import (
     QgsVectorLayer,
     QgsWkbTypes,
 )
-from qgis.gui import QgisInterface
 
 from .general import (
     EMPTY_LAYER_NAME,
     GEOMETRY_SUFFIX_MAP,
-    display_summary_message,
-    generate_summary_message,
     get_current_project,
     get_selected_layers,
     raise_runtime_error,
 )
+from .logs_and_errors import log_summary_message
 
 if TYPE_CHECKING:
     from qgis.core import QgsLayerTree, QgsLayerTreeNode
@@ -57,7 +55,7 @@ def fix_layer_name(name: str) -> str:
     return sanitized_name
 
 
-def prepare_rename_plan(plugin: QgisInterface) -> tuple[list, list, list, list]:
+def prepare_rename_plan() -> tuple[list, list, list, list]:
     """Prepare a plan to rename selected layers based on their parent group.
 
     Empty vector layers are planned to be renamed to 'empty layer'. For other
@@ -67,8 +65,7 @@ def prepare_rename_plan(plugin: QgisInterface) -> tuple[list, list, list, list]:
     the same group, or multiple layers are empty), a geometry type suffix is
     appended to differentiate them.
     """
-    layers_to_process: list[QgsMapLayer] = get_selected_layers(plugin)
-
+    layers_to_process: list[QgsMapLayer] = get_selected_layers()
     # Using defaultdict to group layers by their prospective new name
     potential_renames = defaultdict(list)
     skipped_layers: list[str] = []
@@ -167,28 +164,6 @@ def execute_rename_plan(rename_plan: list) -> list:
     return failed_renames
 
 
-def rename_layers(plugin: QgisInterface) -> None:
-    """Orchestrates the renaming of selected layers to their parent group names."""
-
-    plan: tuple = prepare_rename_plan(plugin)
-    if not plan:
-        return  # Early exit if no plan could be prepared
-    rename_plan, skipped_layers, failed_renames, error_layers = plan
-
-    failed_renames: list = execute_rename_plan(rename_plan)
-
-    successful_count: int = len(rename_plan) - len(failed_renames)
-    message, level = generate_summary_message(
-        successes=successful_count,
-        skipped=skipped_layers,
-        failures=failed_renames,
-        not_found=error_layers,
-        action="Renamed",
-    )
-
-    display_summary_message(plugin, message, level)
-
-
 def geometry_type_suffix(layer: QgsMapLayer) -> str:
     """Get a short suffix for the geometry type of a layer.
 
@@ -202,3 +177,23 @@ def geometry_type_suffix(layer: QgsMapLayer) -> str:
     geom_display_string: str = QgsWkbTypes.geometryDisplayString(geom_type)
 
     return f" - {GEOMETRY_SUFFIX_MAP.get(geom_type, geom_display_string)}"
+
+
+def rename_layers() -> None:
+    """Orchestrates the renaming of selected layers to their parent group names."""
+
+    plan: tuple = prepare_rename_plan()
+
+    rename_plan, skipped_layers, failed_renames, error_layers = plan
+
+    failed_renames: list = execute_rename_plan(rename_plan)
+
+    successful_count: int = len(rename_plan) - len(failed_renames)
+
+    log_summary_message(
+        successes=successful_count,
+        skipped=skipped_layers,
+        failures=failed_renames,
+        not_found=error_layers,
+        action="Renamed",
+    )
