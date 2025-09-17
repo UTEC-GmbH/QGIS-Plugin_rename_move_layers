@@ -16,18 +16,19 @@ from qgis.core import (
     QgsVectorLayer,
     QgsWkbTypes,
 )
-from qgis.gui import QgisInterface
+from qgis.PyQt.QtCore import (
+    QCoreApplication,  # type: ignore[reportAttributeAccessIssue]
+)
 
 from .general import (
     EMPTY_LAYER_NAME,
     GEOMETRY_SUFFIX_MAP,
     clear_attribute_table,
-    display_summary_message,
-    generate_summary_message,
     get_current_project,
     get_selected_layers,
     raise_runtime_error,
 )
+from .logs_and_errors import log_debug, log_summary_message
 from .rename import geometry_type_suffix
 
 
@@ -45,7 +46,11 @@ def project_gpkg() -> Path:
     project: QgsProject = get_current_project()
     project_path_str: str = project.fileName()
     if not project_path_str:
-        raise_runtime_error("Project is not saved. Please save the project first.")
+        raise_runtime_error(
+            QCoreApplication.translate(
+                "RuntimeError", "Project is not saved. Please save the project first."
+            )
+        )
 
     project_path: Path = Path(project_path_str)
     gpkg_path: Path = project_path.with_suffix(".gpkg")
@@ -54,7 +59,11 @@ def project_gpkg() -> Path:
         driver = ogr.GetDriverByName("GPKG")
         data_source = driver.CreateDataSource(str(gpkg_path))
         if data_source is None:
-            raise_runtime_error(f"Failed to create GeoPackage at: {gpkg_path}")
+            raise_runtime_error(
+                QCoreApplication.translate(
+                    "RuntimeError", "Failed to create GeoPackage at: {0}"
+                ).format(gpkg_path)
+            )
 
         # Dereference the data source to close the file and release the lock.
         data_source = None
@@ -109,11 +118,11 @@ def check_existing_layer(gpkg_path: Path, layer: QgsMapLayer) -> str:
     return f"{base_name}{geometry_type_suffix(layer)}"
 
 
-def add_layers_to_gpkg(plugin: QgisInterface) -> None:
+def add_layers_to_gpkg() -> None:
     """Add the selected layers to the project's GeoPackage."""
 
     project: QgsProject = get_current_project()
-    layers: list[QgsMapLayer] = get_selected_layers(plugin)
+    layers: list[QgsMapLayer] = get_selected_layers()
     gpkg_path: Path = project_gpkg()
 
     results: dict = {"successes": 0, "failures": []}
@@ -138,41 +147,37 @@ def add_layers_to_gpkg(plugin: QgisInterface) -> None:
                 if gpkg_layer.isValid():
                     clear_attribute_table(gpkg_layer)
                 else:
-                    # This is an unlikely scenario if writing just succeeded,
-                    # but good to handle.
-                    plugin.iface.messageBar().pushMessage(
-                        "Warning",
-                        (
-                            f"Could not reload layer '{layer.name()}' from GeoPackage "
-                            "to clear attributes."
-                        ),
-                        level=Qgis.Warning,
+                    log_debug(
+                        QCoreApplication.translate(
+                            "GeoPackage",
+                            "Could not reload layer '{0}' from GeoPackage "
+                            "to clear attributes.",
+                        ).format(layer.name()),
+                        Qgis.Warning,
                     )
+
             else:
                 results["failures"].append((layer.name(), error[1]))
 
-    message, level = generate_summary_message(
+    log_summary_message(
         successes=results["successes"],
         failures=results["failures"],
-        action="Moved",
+        action="Added to GeoPackage",
     )
 
-    display_summary_message(plugin, message, level)
 
-
-def add_layers_from_gpkg_to_project(plugin: QgisInterface) -> None:
+def add_layers_from_gpkg_to_project() -> None:
     """Add the selected layers from the project's GeoPackage."""
     project: QgsProject = get_current_project()
-    selected_layers: list[QgsMapLayer] = get_selected_layers(plugin)
+    selected_layers: list[QgsMapLayer] = get_selected_layers()
     gpkg_path: Path = project_gpkg()
     gpkg_path_str = str(gpkg_path)
 
     root: QgsLayerTree | None = project.layerTreeRoot()
     if not root:
-        plugin.iface.messageBar().pushMessage(
-            "Error", "Could not get layer tree root.", level=Qgis.Critical
+        raise_runtime_error(
+            QCoreApplication.translate("RuntimeError", "Could not get layer tree view.")
         )
-        return
 
     added_layers: list[str] = []
     not_found_layers: list[str] = []
@@ -195,25 +200,32 @@ def add_layers_from_gpkg_to_project(plugin: QgisInterface) -> None:
         added_layers.append(layer_name)
 
     if added_layers:
-        plural_s: str = "s" if len(added_layers) > 1 else ""
-        plugin.iface.messageBar().pushMessage(
-            "Success",
-            f"Added {len(added_layers)} layer{plural_s} from the GeoPackage.",
-            level=Qgis.Success,
+        log_debug(
+            QCoreApplication.translate(
+                "log", "Added '{0}' layer(s) from the GeoPackage to the project."
+            ).format(len(added_layers)),
+            Qgis.Success,
         )
     if not_found_layers:
-        count: int = len(not_found_layers)
-        plural_s = "s" if count > 1 else ""
-        layer_list: str = ", ".join(not_found_layers)
-        plugin.iface.messageBar().pushMessage(
-            "Warning",
-            f"Could not find {count} layer{plural_s} in GeoPackage: {layer_list}",
-            level=Qgis.Warning,
+        log_debug(
+            QCoreApplication.translate(
+                "log",
+                "Could not find {count} layer(s) in GeoPackage: {layer_list}",
+            ).format(
+                count=len(not_found_layers), layer_list=", ".join(not_found_layers)
+            ),
+            Qgis.Warning,
         )
 
+    log_summary_message(
+        successes=len(added_layers),
+        failures=not_found_layers,
+        action="Added from GeoPackage",
+    )
 
-def move_layers_to_gpkg(plugin: QgisInterface) -> None:
+
+def move_layers_to_gpkg() -> None:
     """Move the selected layers to the project's GeoPackage."""
 
-    add_layers_to_gpkg(plugin)
-    add_layers_from_gpkg_to_project(plugin)
+    add_layers_to_gpkg()
+    add_layers_from_gpkg_to_project()

@@ -26,7 +26,13 @@
 from pathlib import Path
 from typing import Callable
 
+from qgis.core import Qgis
 from qgis.gui import QgisInterface
+from qgis.PyQt.QtCore import (
+    QCoreApplication,  # type: ignore[reportAttributeAccessIssue]
+    QSettings,  # type: ignore[reportMissingTypeStubs]
+    QTranslator,  # type: ignore[reportMissingTypeStubs]
+)
 from qgis.PyQt.QtGui import QIcon  # type: ignore[reportAttributeAccessIssue]
 from qgis.PyQt.QtWidgets import (
     QAction,
@@ -34,13 +40,19 @@ from qgis.PyQt.QtWidgets import (
     QToolButton,  # type: ignore[reportAttributeAccessIssue]
 )
 
-from . import resources  # noqa: F401 - Import is necessary to load resources
-from .modules.general import raise_runtime_error
+from . import resources
+from .modules import general as ge
 from .modules.geopackage import move_layers_to_gpkg
+from .modules.logs_and_errors import (
+    CustomRuntimeError,
+    CustomUserError,
+    log_debug,
+    raise_runtime_error,
+)
 from .modules.rename import rename_layers
 
 
-class RenameAndMoveLayersToGPKG:
+class RenameAndMoveLayersToGPKG:  # pylint: disable=too-many-instance-attributes
     """QGIS Plugin for renaming and moving layers to a GeoPackage."""
 
     def __init__(self, iface: QgisInterface) -> None:
@@ -50,13 +62,29 @@ class RenameAndMoveLayersToGPKG:
         """
 
         self.iface: QgisInterface = iface
+        ge.iface = iface
         self.plugin_dir: Path = Path(__file__).parent
         self.actions: list = []
-        # Using a shorter name for the menu for a cleaner look
         self.menu: str = "Rename and Move Layers"
         self.plugin_menu: QMenu | None = None
         self.dlg = None
-        self.icon_path = ":/plugins/rename_move_layers/icon.png"
+        self.icon_path = ":/compiled_resources/icon.png"
+        self.translator: QTranslator | None = None
+
+        # initialize translation
+        locale = QSettings().value("locale/userLocale", "en")[:2]
+        translator_path: Path = self.plugin_dir / "i18n" / f"{locale}.qm"
+
+        if not translator_path.exists():
+            log_debug(f"Translator not found in: {translator_path}", Qgis.Warning)
+        else:
+            self.translator = QTranslator()
+            if self.translator is not None and self.translator.load(
+                str(translator_path)
+            ):
+                QCoreApplication.installTranslator(self.translator)
+            else:
+                log_debug("Translator could not be installed.", Qgis.Warning)
 
     def add_action(  # noqa: PLR0913 # pylint: disable=too-many-arguments,too-many-positional-arguments
         self,
@@ -136,38 +164,58 @@ class RenameAndMoveLayersToGPKG:
     def initGui(self) -> None:  # noqa: N802
         """Create the menu entries and toolbar icons for the plugin."""
 
+        # Initialize the resources (icons, etc.)
+        resources.qInitResources()
+
         # Create a menu for the plugin in the "Plugins" menu
         self.plugin_menu = QMenu(self.menu, self.iface.pluginMenu())
         if self.plugin_menu is None:
-            raise_runtime_error("Failed to create the plugin menu.")
+            raise_runtime_error(
+                QCoreApplication.translate(
+                    "RuntimeError", "Failed to create the plugin menu."
+                )
+            )
 
         self.plugin_menu.setIcon(QIcon(self.icon_path))
 
         # Add an action for renaming layers
         rename_action = self.add_action(
             self.icon_path,
-            text="Rename Layers by Group",
+            text=QCoreApplication.translate("Menu_main", "Rename Layers by Group"),
             callback=self.rename_selected_layers,
             parent=self.iface.mainWindow(),
             add_to_menu=False,  # Will be added to our custom menu
             add_to_toolbar=False,  # Avoid creating a separate toolbar button
-            status_tip="Rename selected layers to their parent group names",
-            whats_this="Renames selected layers to match their parent group's name.",
+            status_tip=QCoreApplication.translate(
+                "Menu_tip", "Rename selected layers to their parent group names"
+            ),
+            whats_this=QCoreApplication.translate(
+                "Menu_whats",
+                "Renames selected layers to match their parent group's name.",
+            ),
         )
         self.plugin_menu.addAction(rename_action)
 
         # Add an action for moving layers
         move_action = self.add_action(
             self.icon_path,
-            text="Move Layers to GeoPackage",
+            text=QCoreApplication.translate("Menu_main", "Move Layers to GeoPackage"),
             callback=self.move_selected_layers,
             parent=self.iface.mainWindow(),
             add_to_menu=False,  # Added to custom menu
             add_to_toolbar=False,
-            status_tip="Move selected layers to the project's GeoPackage",
+            status_tip=QCoreApplication.translate(
+                "Menu_tip", "Move selected layers to the project's GeoPackage"
+            ),
             whats_this=(
-                "Copies selected layers to a GeoPackage and "
-                "adds them back from the GeoPackage."
+                QCoreApplication.translate(
+                    "Menu_whats",
+                    "Copies selected layers to the project's GeoPackage "
+                    "(a GeoPackage in the project folder "
+                    "with the same name as the project file) "
+                    "and adds them back from the GeoPackage "
+                    "to the layer tree of the project.",
+                )
             ),
         )
         self.plugin_menu.addAction(move_action)
@@ -175,22 +223,32 @@ class RenameAndMoveLayersToGPKG:
         # Add an action for renaming and moving layers
         rename_move_action = self.add_action(
             self.icon_path,
-            text="Rename Layers and Move them to GeoPackage",
+            text=QCoreApplication.translate(
+                "Menu_main", "Rename Layers and Move them to GeoPackage"
+            ),
             callback=self.rename_and_move_layers,
             parent=self.iface.mainWindow(),
             add_to_menu=False,  # Added to custom menu
             add_to_toolbar=False,
-            status_tip="Rename and move selected layers to the project's GeoPackage",
-            whats_this=(
+            status_tip=QCoreApplication.translate(
+                "Menu_tip",
+                "Rename and move selected layers to the project's GeoPackage",
+            ),
+            whats_this=QCoreApplication.translate(
+                "Menu_whats",
                 "Renames the selected layers to their parent group names, "
-                "then copies them to the project's GeoPackage and "
-                "adds them back from the GeoPackage."
+                "then copies them to the project's GeoPackage "
+                "(a GeoPackage in the project folder "
+                "with the same name as the project file) "
+                "and adds them back from the GeoPackage "
+                "to the layer tree of the project.",
             ),
         )
         self.plugin_menu.addAction(rename_move_action)
 
         # Add the fly-out menu to the main "Plugins" menu
         self.iface.pluginMenu().addMenu(self.plugin_menu)  # type: ignore[]
+
         # Add a toolbutton to the toolbar to show the flyout menu
         toolbar_button = QToolButton()
         toolbar_button.setMenu(self.plugin_menu)
@@ -215,18 +273,27 @@ class RenameAndMoveLayersToGPKG:
         self.actions.clear()
         self.plugin_menu = None
 
-    def rename_selected_layers(self) -> None:
+        # Unload resources to allow for reloading them
+        resources.qCleanupResources()
+
+    def rename_selected_layers(self) -> None:  # pylint: disable=useless-return
         """Call rename function from 'functions_rename.py'."""
+        try:
+            rename_layers()
+        except (CustomUserError, CustomRuntimeError):
+            return
 
-        rename_layers(self)  # type: ignore[]
-
-    def move_selected_layers(self) -> None:
+    def move_selected_layers(self) -> None:  # pylint: disable=useless-return
         """Call move function from 'functions_geopackage.py'."""
+        try:
+            move_layers_to_gpkg()
+        except (CustomUserError, CustomRuntimeError):
+            return
 
-        move_layers_to_gpkg(self)  # type: ignore[]
-
-    def rename_and_move_layers(self) -> None:
+    def rename_and_move_layers(self) -> None:  # pylint: disable=useless-return
         """Combine the rename and move functions."""
-
-        rename_layers(self)  # type: ignore[]
-        move_layers_to_gpkg(self)  # type: ignore[]
+        try:
+            rename_layers()
+            move_layers_to_gpkg()
+        except (CustomUserError, CustomRuntimeError):
+            return
