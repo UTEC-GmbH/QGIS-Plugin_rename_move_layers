@@ -26,7 +26,7 @@
 #Add iso code for any locales you want to support here (space separated)
 # default is no locales
 # LOCALES = af
-LOCALES =
+LOCALES = de
 
 # If locales are enabled, set the name of the lrelease binary on your system. If
 # you have trouble compiling the translations, you may have to specify the full path to
@@ -36,21 +36,17 @@ LOCALES =
 
 
 # translation
-SOURCES = \
-	__init__.py \
-	rename_move_layers.py
+SOURCES = $(shell find . -name "*.py")
 
 PLUGINNAME = move_layers_to_gpkg
 
-PY_FILES = \
-	__init__.py \
-	rename_move_layers.py
+PY_FILES = $(shell find . -name "*.py")
 
 
 
 EXTRAS = metadata.txt icon.png
 
-EXTRA_DIRS =
+EXTRA_DIRS = i18n
 
 COMPILED_RESOURCE_FILES = resources.py
 
@@ -65,7 +61,15 @@ PEP8EXCLUDE=pydev,resources.py,conf.py,third_party,ui
 #	* Windows:
 #	  AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins'
 
-QGISDIR=C:\Users\fl\AppData/Roaming/QGIS/QGIS3/profiles/default/python/plugins
+ifeq ($(OS),Windows_NT)
+    QGISDIR = $(APPDATA)/QGIS/QGIS3/profiles/default/python/plugins
+else
+    ifeq ($(shell uname), Darwin)
+        QGISDIR = $(HOME)/Library/Application Support/QGIS/QGIS3/profiles/default/python/plugins
+    else
+        QGISDIR = $(HOME)/.local/share/QGIS/QGIS3/profiles/default/python/plugins
+    endif
+endif
 
 #################################################
 # Normally you would not need to edit below here
