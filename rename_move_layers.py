@@ -23,8 +23,9 @@
  ***************************************************************************
 """
 
+import configparser
 from pathlib import Path
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
 
 from qgis.core import Qgis
 from qgis.gui import QgisInterface
@@ -42,14 +43,12 @@ from qgis.PyQt.QtWidgets import (
 
 from . import resources
 from .modules import general as ge
+from .modules import logs_and_errors as lae
 from .modules.geopackage import move_layers_to_gpkg
-from .modules.logs_and_errors import (
-    CustomRuntimeError,
-    CustomUserError,
-    log_debug,
-    raise_runtime_error,
-)
 from .modules.rename import rename_layers
+
+if TYPE_CHECKING:
+    from qgis.gui import QgsMessageBar
 
 
 class RenameAndMoveLayersToGPKG:  # pylint: disable=too-many-instance-attributes
@@ -62,21 +61,36 @@ class RenameAndMoveLayersToGPKG:  # pylint: disable=too-many-instance-attributes
         """
 
         self.iface: QgisInterface = iface
+        self.msg_bar: QgsMessageBar | None = iface.messageBar()
         ge.iface = iface
         self.plugin_dir: Path = Path(__file__).parent
         self.actions: list = []
-        self.menu: str = "Rename and Move Layers"
         self.plugin_menu: QMenu | None = None
         self.dlg = None
         self.icon_path = ":/compiled_resources/icon.png"
         self.translator: QTranslator | None = None
+
+        # Read metadata to get the plugin name for UI elements
+        self.plugin_name: str = (
+            "UTEC Layer umbenennen und in GPKG speichern (dev)"  # Default
+        )
+        metadata_path: Path = self.plugin_dir / "metadata.txt"
+        if metadata_path.exists():
+            config = configparser.ConfigParser()
+            config.read(metadata_path)
+            try:
+                self.plugin_name = config.get("general", "name")
+            except (configparser.NoSectionError, configparser.NoOptionError):
+                lae.log_debug("Could not read name from metadata.txt", Qgis.Warning)
+
+        self.menu: str = self.plugin_name
 
         # initialize translation
         locale = QSettings().value("locale/userLocale", "en")[:2]
         translator_path: Path = self.plugin_dir / "i18n" / f"{locale}.qm"
 
         if not translator_path.exists():
-            log_debug(f"Translator not found in: {translator_path}", Qgis.Warning)
+            lae.log_debug(f"Translator not found in: {translator_path}", Qgis.Warning)
         else:
             self.translator = QTranslator()
             if self.translator is not None and self.translator.load(
@@ -84,7 +98,7 @@ class RenameAndMoveLayersToGPKG:  # pylint: disable=too-many-instance-attributes
             ):
                 QCoreApplication.installTranslator(self.translator)
             else:
-                log_debug("Translator could not be installed.", Qgis.Warning)
+                lae.log_debug("Translator could not be installed.", Qgis.Warning)
 
     def add_action(  # noqa: PLR0913 # pylint: disable=too-many-arguments,too-many-positional-arguments
         self,
@@ -170,7 +184,7 @@ class RenameAndMoveLayersToGPKG:  # pylint: disable=too-many-instance-attributes
         # Create a menu for the plugin in the "Plugins" menu
         self.plugin_menu = QMenu(self.menu, self.iface.pluginMenu())
         if self.plugin_menu is None:
-            raise_runtime_error(
+            lae.raise_runtime_error(
                 QCoreApplication.translate(
                     "RuntimeError", "Failed to create the plugin menu."
                 )
@@ -191,7 +205,7 @@ class RenameAndMoveLayersToGPKG:  # pylint: disable=too-many-instance-attributes
             ),
             whats_this=QCoreApplication.translate(
                 "Menu_whats",
-                "Renames selected layers to match their parent group's name."
+                "Renames selected layers to match their parent group's name.",
             ),
         )
         self.plugin_menu.addAction(rename_action)
@@ -208,13 +222,13 @@ class RenameAndMoveLayersToGPKG:  # pylint: disable=too-many-instance-attributes
                 "Menu_tip", "Move selected layers to the project's GeoPackage"
             ),
             whats_this=QCoreApplication.translate(
-                    "Menu_whats",
-                    "Copies selected layers to the project's GeoPackage "
-                    "(a GeoPackage in the project folder "
-                    "with the same name as the project file) "
-                    "and adds them back from the GeoPackage "
-                    "to the layer tree of the project."
-                ),
+                "Menu_whats",
+                "Copies selected layers to the project's GeoPackage "
+                "(a GeoPackage in the project folder "
+                "with the same name as the project file) "
+                "and adds them back from the GeoPackage "
+                "to the layer tree of the project.",
+            ),
         )
         self.plugin_menu.addAction(move_action)
 
@@ -239,7 +253,7 @@ class RenameAndMoveLayersToGPKG:  # pylint: disable=too-many-instance-attributes
                 "(a GeoPackage in the project folder "
                 "with the same name as the project file) "
                 "and adds them back from the GeoPackage "
-                "to the layer tree of the project."
+                "to the layer tree of the project.",
             ),
         )
         self.plugin_menu.addAction(rename_move_action)
@@ -260,6 +274,10 @@ class RenameAndMoveLayersToGPKG:  # pylint: disable=too-many-instance-attributes
 
         Called when the plugin is unloaded according to the plugin QGIS metadata.
         """
+        # Remove the translator
+        if self.translator:
+            QCoreApplication.removeTranslator(self.translator)
+
         # Remove toolbar icons for all actions
         for action in self.actions:
             self.iface.removeToolBarIcon(action)
@@ -274,24 +292,24 @@ class RenameAndMoveLayersToGPKG:  # pylint: disable=too-many-instance-attributes
         # Unload resources to allow for reloading them
         resources.qCleanupResources()
 
-    def rename_selected_layers(self) -> None:  # pylint: disable=useless-return
+    def rename_selected_layers(self) -> None:
         """Call rename function from 'functions_rename.py'."""
         try:
             rename_layers()
-        except (CustomUserError, CustomRuntimeError):
+        except (lae.CustomUserError, lae.CustomRuntimeError):
             return
 
-    def move_selected_layers(self) -> None:  # pylint: disable=useless-return
+    def move_selected_layers(self) -> None:
         """Call move function from 'functions_geopackage.py'."""
         try:
             move_layers_to_gpkg()
-        except (CustomUserError, CustomRuntimeError):
+        except (lae.CustomUserError, lae.CustomRuntimeError):
             return
 
-    def rename_and_move_layers(self) -> None:  # pylint: disable=useless-return
+    def rename_and_move_layers(self) -> None:
         """Combine the rename and move functions."""
         try:
             rename_layers()
             move_layers_to_gpkg()
-        except (CustomUserError, CustomRuntimeError):
+        except (lae.CustomUserError, lae.CustomRuntimeError):
             return

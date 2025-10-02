@@ -4,17 +4,17 @@
 <context>
     <name>Menu_main</name>
     <message>
-        <location filename="../rename_move_layers.py" line="182"/>
+        <location filename="../rename_move_layers.py" line="196"/>
         <source>Rename Layers by Group</source>
         <translation>Layer gemäß Gruppe umbenennen</translation>
     </message>
     <message>
-        <location filename="../rename_move_layers.py" line="200"/>
+        <location filename="../rename_move_layers.py" line="214"/>
         <source>Move Layers to GeoPackage</source>
         <translation>Layer in GeoPackage verschieben</translation>
     </message>
     <message>
-        <location filename="../rename_move_layers.py" line="222"/>
+        <location filename="../rename_move_layers.py" line="236"/>
         <source>Rename Layers and Move them to GeoPackage</source>
         <translation>Layer umbenennen und in GeoPackage verschieben</translation>
     </message>
@@ -22,38 +22,20 @@
 <context>
     <name>Menu_tip</name>
     <message>
-        <location filename="../rename_move_layers.py" line="182"/>
+        <location filename="../rename_move_layers.py" line="196"/>
         <source>Rename selected layers to their parent group names</source>
         <translation>Gewählte Layer gemäß ihrer Gruppe umbenennen</translation>
     </message>
     <message>
-        <location filename="../rename_move_layers.py" line="200"/>
+        <location filename="../rename_move_layers.py" line="214"/>
         <source>Move selected layers to the project&apos;s GeoPackage</source>
         <translation>Gewählte Layer in das Projekt-GeoPackage verschieben</translation>
     </message>
 </context>
 <context>
-    <name>Menu_whats</name>
-    <message>
-        <location filename="../rename_move_layers.py" line="182"/>
-        <source>Renames selected layers to match their parent group&apos;s name.</source>
-        <translation>Benennt die gewählten Layer gemäß ihrer Gruppen um.</translation>
-    </message>
-    <message>
-        <location filename="../rename_move_layers.py" line="200"/>
-        <source>Copies selected layers to the project&apos;s GeoPackage (a GeoPackage in the project folder with the same name as the project file) and adds them back from the GeoPackage to the layer tree of the project.</source>
-        <translation>Kopiert die gewählten Layer in das Projekt-GeoPackage (ein GeoPackage im Projektordner mit dem selben Namen wie die Projektdatei) und fügt sie aus dem GeoPackage in das Projekt ein.</translation>
-    </message>
-    <message>
-        <location filename="../rename_move_layers.py" line="222"/>
-        <source>Renames the selected layers to their parent group names, then copies them to the project&apos;s GeoPackage (a GeoPackage in the project folder with the same name as the project file) and adds them back from the GeoPackage to the layer tree of the project.</source>
-        <translation>Benennt die gewählten Layer gemäß ihrer Gruppe um, kopiert sie in das Projekt-GeoPackage (ein GeoPackage im Projektordner mit dem selben Namen wie die Projektdatei) und fügt sie aus dem GeoPackage in das Projekt ein.</translation>
-    </message>
-</context>
-<context>
     <name>RuntimeError</name>
     <message>
-        <location filename="../rename_move_layers.py" line="173"/>
+        <location filename="../rename_move_layers.py" line="187"/>
         <source>Failed to create the plugin menu.</source>
         <translation>Konnte das Plugin-Menu nicht erstellen.</translation>
     </message>
