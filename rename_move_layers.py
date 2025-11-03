@@ -24,8 +24,9 @@
 """
 
 import configparser
+from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 from qgis.core import Qgis
 from qgis.gui import QgisInterface
@@ -45,7 +46,7 @@ from . import resources
 from .modules import general as ge
 from .modules import logs_and_errors as lae
 from .modules.geopackage import move_layers_to_gpkg
-from .modules.rename import rename_layers
+from .modules.rename import rename_layers, undo_rename_layers
 
 if TYPE_CHECKING:
     from qgis.gui import QgsMessageBar
@@ -210,6 +211,24 @@ class RenameAndMoveLayersToGPKG:  # pylint: disable=too-many-instance-attributes
         )
         self.plugin_menu.addAction(rename_action)
 
+        # Add an action for undoing the last rename
+        undo_rename_action = self.add_action(
+            self.icon_path,
+            text=QCoreApplication.translate("Menu_main", "Undo Last Rename"),
+            callback=self.undo_last_rename,
+            parent=self.iface.mainWindow(),
+            add_to_menu=False,  # Added to custom menu
+            add_to_toolbar=False,
+            status_tip=QCoreApplication.translate(
+                "Menu_tip", "Reverts the last layer renaming operation"
+            ),
+            whats_this=QCoreApplication.translate(
+                "Menu_whats",
+                "Undoes the most recent layer renaming operation performed by this plugin.",
+            ),
+        )
+        self.plugin_menu.addAction(undo_rename_action)
+
         # Add an action for moving layers
         move_action = self.add_action(
             self.icon_path,
@@ -303,6 +322,13 @@ class RenameAndMoveLayersToGPKG:  # pylint: disable=too-many-instance-attributes
         """Call move function from 'functions_geopackage.py'."""
         try:
             move_layers_to_gpkg()
+        except (lae.CustomUserError, lae.CustomRuntimeError):
+            return
+
+    def undo_last_rename(self) -> None:
+        """Call undo function from 'modules/rename.py'."""
+        try:
+            undo_rename_layers()
         except (lae.CustomUserError, lae.CustomRuntimeError):
             return
 

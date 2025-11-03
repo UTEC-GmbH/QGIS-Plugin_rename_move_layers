@@ -1,10 +1,11 @@
 [general]
 name=UTEC umbenennen und speichern (dev)
 
-version=0.2
+version=0.3
 changelog=
-    Version 0.2:
-    - erster Release
+    Version 0.3:
+    - Beim Verschieben wird der Stil des Layers vom Ursprungslayer übernommen
+    - Umbenennen kann rückgängig gemacht werden.
 
 description=Gewählte Layer werde umbenannt (falls sie in einer Gruppe sind) und in das Projekt-GeoPackage verschoben. (hilfreich nach CAD-Import)
 qgisMinimumVersion=3.0

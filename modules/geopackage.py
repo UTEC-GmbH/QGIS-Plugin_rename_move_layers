@@ -134,24 +134,31 @@ def add_layers_to_gpkg() -> None:
             options.layerName = check_existing_layer(gpkg_path, layer)
             options.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteLayer
 
-            error = QgsVectorFileWriter.writeAsVectorFormatV3(
+            error: tuple = QgsVectorFileWriter.writeAsVectorFormatV3(
                 layer, str(gpkg_path), project.transformContext(), options
             )
             if error[0] == QgsVectorFileWriter.WriterError.NoError:
                 results["successes"] += 1
 
-                # Load the new layer from the GeoPackage to clear its attributes
-                # (the attributes that are imported fom AutoCAD are useless)
-                uri: str = f"{gpkg_path}|layername={layer.name()}"
-                gpkg_layer = QgsVectorLayer(uri, layer.name(), "ogr")
-                if gpkg_layer.isValid():
-                    clear_attribute_table(gpkg_layer)
+                # Load the new layer from the GeoPackage
+                uri: str = f"{gpkg_path}|layername={options.layerName}"
+                gpkg_layer = QgsVectorLayer(uri, options.layerName, "ogr")
+                if gpkg_layer.isValid() and isinstance(layer, QgsVectorLayer):
+                    # Copy layer style and
+                    # clear attribute table if imported from AutoCAD
+                    gpkg_layer.cloneStyleFrom(layer)
+
+                    is_autocad_import: bool = all(
+                        s in layer.source().lower()
+                        for s in ["|subset=layer", " and space=", " and block="]
+                    )
+                    if is_autocad_import:
+                        clear_attribute_table(gpkg_layer)
                 else:
                     log_debug(
                         QCoreApplication.translate(
                             "GeoPackage",
-                            "Could not reload layer '{0}' from GeoPackage "
-                            "to clear attributes.",
+                            "Could not reload layer '{0}' from GeoPackage.",
                         ).format(layer.name()),
                         Qgis.Warning,
                     )
