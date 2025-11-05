@@ -12,8 +12,8 @@ echo Creating/updating translation source file (i18n/de.ts)...
 if not exist i18n mkdir i18n
 setlocal enabledelayedexpansion
 set "PY_FILES="
-for /f "delims=" %%i in ('dir /b /s *.py ^| findstr /v /i "__pycache__" ^| findstr /v /i "plugin_upload.py"') do (
-    set "PY_FILES=!PY_FILES! %%i"
+for /f "delims=" %%i in ('dir /s /b *.py ^| findstr /V /I /C:"__pycache__" /C:"\.git" /C:"\.venv" /C:"release.py" /C:"resources.py"') do (
+    set "PY_FILES=!PY_FILES! "%%i""
 )
 pylupdate5 -noobsolete -verbose !PY_FILES! -ts i18n/de.ts
 endlocal

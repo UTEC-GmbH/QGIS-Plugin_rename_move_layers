@@ -5,6 +5,7 @@ This module contains the functions concerning GeoPackages.
 
 import re
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from osgeo import ogr
 from qgis.core import (
@@ -26,10 +27,17 @@ from .general import (
     clear_attribute_table,
     get_current_project,
     get_selected_layers,
-    raise_runtime_error,
 )
-from .logs_and_errors import log_debug, log_summary_message
+from .logs_and_errors import (
+    log_debug,
+    log_summary_message,
+    raise_runtime_error,
+    raise_user_error,
+)
 from .rename import geometry_type_suffix
+
+if TYPE_CHECKING:
+    from qgis.core import QgsMapLayerStyle, QgsMapLayerStyleManager
 
 
 def project_gpkg() -> Path:
@@ -40,17 +48,16 @@ def project_gpkg() -> Path:
     it looks for 'my_project.gpkg' in the same directory.
 
     :returns: The Path object to the GeoPackage.
-    :raises RuntimeError: If the project is not saved.
+    :raises UserError: If the project is not saved.
     :raises IOError: If the GeoPackage file cannot be created.
     """
     project: QgsProject = get_current_project()
     project_path_str: str = project.fileName()
     if not project_path_str:
-        raise_runtime_error(
-            QCoreApplication.translate(
-                "RuntimeError", "Project is not saved. Please save the project first."
-            )
-        )
+        # fmt: off
+        msg: str = QCoreApplication.translate("UserError", "Project is not saved. Please save the project first.")  # noqa: E501
+        # fmt: on
+        raise_user_error(msg)
 
     project_path: Path = Path(project_path_str)
     gpkg_path: Path = project_path.with_suffix(".gpkg")
@@ -59,11 +66,10 @@ def project_gpkg() -> Path:
         driver = ogr.GetDriverByName("GPKG")
         data_source = driver.CreateDataSource(str(gpkg_path))
         if data_source is None:
-            raise_runtime_error(
-                QCoreApplication.translate(
-                    "RuntimeError", "Failed to create GeoPackage at: {0}"
-                ).format(gpkg_path)
-            )
+            # fmt: off
+            msg: str = QCoreApplication.translate("RuntimeError", "Failed to create GeoPackage at: {0}").format(gpkg_path)  # noqa: E501
+            # fmt: on
+            raise_runtime_error(msg)
 
         # Dereference the data source to close the file and release the lock.
         data_source = None
@@ -144,10 +150,6 @@ def add_layers_to_gpkg() -> None:
                 uri: str = f"{gpkg_path}|layername={options.layerName}"
                 gpkg_layer = QgsVectorLayer(uri, options.layerName, "ogr")
                 if gpkg_layer.isValid() and isinstance(layer, QgsVectorLayer):
-                    # Copy layer style and
-                    # clear attribute table if imported from AutoCAD
-                    gpkg_layer.cloneStyleFrom(layer)
-
                     is_autocad_import: bool = all(
                         s in layer.source().lower()
                         for s in ["|subset=layer", " and space=", " and block="]
@@ -156,11 +158,7 @@ def add_layers_to_gpkg() -> None:
                         clear_attribute_table(gpkg_layer)
                 else:
                     log_debug(
-                        QCoreApplication.translate(
-                            "GeoPackage",
-                            "Could not reload layer '{0}' from GeoPackage.",
-                        ).format(layer.name()),
-                        Qgis.Warning,
+                        f"Could not reload layer '{layer.name()}' from GeoPackage."
                     )
 
             else:
@@ -173,6 +171,43 @@ def add_layers_to_gpkg() -> None:
     )
 
 
+def copy_layer_style(source_layer: QgsMapLayer, target_layer: QgsMapLayer) -> None:
+    """Copy the active style from a source layer to a target layer.
+
+    This function retrieves the currently active style from the `source_layer`,
+    adds it to the `target_layer`'s style manager under the name
+    'copied_style', and then sets this new style as the current one for the
+    target layer. Finally, it triggers a repaint to ensure the changes are
+    visible in the QGIS interface.
+
+    Args:
+        source_layer: The QGIS layer from which to copy the style.
+        target_layer: The QGIS layer to which the style will be applied.
+    """
+
+    mngr_source: QgsMapLayerStyleManager | None = source_layer.styleManager()
+    mngr_target: QgsMapLayerStyleManager | None = target_layer.styleManager()
+
+    if mngr_source is None or mngr_target is None:
+        return
+
+    # get the name of the source layer's current style
+    style_name: str = mngr_source.currentStyle()
+
+    # get the style by the name
+    style: QgsMapLayerStyle = mngr_source.style(style_name)
+
+    # add the style to the target layer with a custom name (in this case: 'copied')
+    mngr_target.addStyle("copied_style", style)
+
+    # set the added style as the current style
+    mngr_target.setCurrentStyle("copied_style")
+
+    # propogate the changes to the QGIS GUI
+    target_layer.triggerRepaint()
+    target_layer.emitStyleChanged()
+
+
 def add_layers_from_gpkg_to_project() -> None:
     """Add the selected layers from the project's GeoPackage."""
     project: QgsProject = get_current_project()
@@ -182,9 +217,10 @@ def add_layers_from_gpkg_to_project() -> None:
 
     root: QgsLayerTree | None = project.layerTreeRoot()
     if not root:
-        raise_runtime_error(
-            QCoreApplication.translate("RuntimeError", "Could not get layer tree view.")
-        )
+        # fmt: off
+        msg: str = QCoreApplication.translate("RuntimeError", "Could not get layer tree root.")  # noqa: E501
+        # fmt: on
+        raise_runtime_error(msg)
 
     added_layers: list[str] = []
     not_found_layers: list[str] = []
@@ -204,23 +240,21 @@ def add_layers_from_gpkg_to_project() -> None:
         project.addMapLayer(gpkg_layer, addToLegend=False)
         # Then, insert it at the top of the layer tree
         root.insertLayer(0, gpkg_layer)
+
         added_layers.append(layer_name)
+
+        # Copy the layer's style to the GeoPackage layer
+        copy_layer_style(layer_to_find, gpkg_layer)
 
     if added_layers:
         log_debug(
-            QCoreApplication.translate(
-                "log", "Added '{0}' layer(s) from the GeoPackage to the project."
-            ).format(len(added_layers)),
+            f"Added '{len(added_layers)}' layer(s) from the GeoPackage to the project.",
             Qgis.Success,
         )
     if not_found_layers:
         log_debug(
-            QCoreApplication.translate(
-                "log",
-                "Could not find {count} layer(s) in GeoPackage: {layer_list}",
-            ).format(
-                count=len(not_found_layers), layer_list=", ".join(not_found_layers)
-            ),
+            f"Could not find {len(not_found_layers)} layer(s) "
+            f"in GeoPackage: {', '.join(not_found_layers)}",
             Qgis.Warning,
         )
 

@@ -5,41 +5,105 @@ This module contains logging functions and custom error classes.
 
 import inspect
 from pathlib import Path
+from types import FrameType
 from typing import TYPE_CHECKING, NoReturn
 
 from qgis.core import Qgis, QgsMessageLog
-from qgis.gui import QgisInterface
-from qgis.PyQt.QtCore import (
-    QCoreApplication,  # type: ignore[reportAttributeAccessIssue]
-)
-
-iface: QgisInterface | None = None
+from qgis.PyQt.QtCore import QCoreApplication
+from qgis.utils import iface
 
 if TYPE_CHECKING:
-    from types import FrameType
+    from qgis.gui import QgisInterface
+
+LEVEL_ICON: dict[Qgis.MessageLevel, str] = {
+    Qgis.Success: "🎉",
+    Qgis.Info: "💡",
+    Qgis.Warning: "💥",
+    Qgis.Critical: "☠️",
+}
+
+LOG_TAG: str = "Plugin: Rename_Move_Layers"
 
 
-def log_debug(message: str, msg_level: Qgis.MessageLevel = Qgis.Info) -> None:
+def file_line(frame: FrameType | None) -> str:
+    """Return the filename and line number of the caller.
+
+    This function inspects the call stack to determine the file and line number
+    from which `log_debug` or `log_and_show_error` was called.
+
+    Args:
+        frame: The current frame object,
+            typically obtained via `inspect.currentframe()`.
+
+    Returns:
+        A string formatted as " (filename: line_number)" or an empty string if
+        the frame information is not available.
+    """
+
+    if frame and frame.f_back:
+        filename: str = Path(frame.f_back.f_code.co_filename).name
+        lineno: int = frame.f_back.f_lineno
+        return f" [{filename}: {lineno}]"
+    return ""
+
+
+def log_debug(
+    message: str,
+    level: Qgis.MessageLevel = Qgis.Info,
+    file_line_number: str | None = None,
+    icon: str | None = None,
+) -> None:
     """Log a debug message.
 
-    :param message: The message to log.
+    Logs a message to the QGIS message log, prepending an icon and appending
+    the filename and line number of the caller.
+
+    Args:
+        message: The message to log.
+        level: The QGIS message level (Success, Info, Warning, Critical).
+            Defaults to Qgis.Info.
+        file_line_number: An optional string to append to the message.
+            Defaults to the filename and line number of the caller.
+        icon: An optional icon string to prepend to the message. If None,
+            a default icon based on `msg_level` will be used.
+
+    Returns:
+        None
     """
-    QgsMessageLog.logMessage(
-        message, "Plugin - Rename and Move Layers to gpkg", level=msg_level
-    )
+
+    file_line_number = file_line_number or file_line(inspect.currentframe())
+
+    icon = icon or LEVEL_ICON[level]
+    message = f"{icon} {message}{file_line_number}"
+
+    QgsMessageLog.logMessage(f"{message}", LOG_TAG, level=level)
 
 
-def push_message(
-    title: str, message: str, level: Qgis.MessageLevel = Qgis.Info
+def show_message(
+    message: str, level: Qgis.MessageLevel = Qgis.Critical, duration: int = 0
 ) -> None:
     """Display a message in the QGIS message bar.
 
-    :param title: The title of the message.
-    :param message: The message content to display.
-    :param level: The message level (e.g., Info, Warning, Critical).
+    This helper function standardizes error handling by ensuring that a critical
+    error is logged and displayed to the user.
+
+    :param error_msg: The error message to display and include in the exception.
+    :param level: The QGIS message level (Warning, Critical, etc.).
+    :param duration: The duration of the message in seconds (default: 0 = until closed)
+    :return: None
     """
-    if iface and (msg_bar := iface.messageBar()):
-        msg_bar.pushMessage(title, message, level=level, duration=10)
+
+    qgis_iface: QgisInterface | None = iface
+    if qgis_iface and (msg_bar := qgis_iface.messageBar()):
+        msg_bar.clearWidgets()
+        msg_bar.pushMessage(
+            f"{LEVEL_ICON[level]} {message}", level=level, duration=duration
+        )
+    else:
+        QgsMessageLog.logMessage(
+            f"{LEVEL_ICON[Qgis.Warning]} iface not set or message bar not available! "
+            f"→ Error not displayed in message bar."
+        )
 
 
 def log_summary_message(
@@ -66,124 +130,80 @@ def log_summary_message(
     :returns: A tuple containing the summary message (str) and the message level (int).
     """
     message_parts: list[str] = []
-    message_level: Qgis.MessageLevel = Qgis.Success
+    debug_level: Qgis.MessageLevel = Qgis.Success
 
     if successes:
-        message_parts.append(
-            QCoreApplication.translate(
-                "log_summary", "{action} {successes} layer(s)."
-            ).format(action=action.lower(), successes=successes)
-        )
+        # fmt: off
+        msg_part: str = QCoreApplication.translate("log_summary", "{action} {successes} layer(s).").format(action=action.lower(), successes=successes)  # noqa: E501
+        # fmt: on
+        message_parts.append(msg_part)
 
     if skipped:
-        message_level = Qgis.Warning
-        message_parts.append(
-            QCoreApplication.translate(
-                "log_summary", "Skipped {num_skipped} layer(s)."
-            ).format(num_skipped=len(skipped))
-        )
+        # fmt: off
+        msg_part: str = QCoreApplication.translate("log_summary", "Skipped {num_skipped} layer(s).").format(num_skipped=len(skipped))  # noqa: E501
+        # fmt: on
+        debug_level = Qgis.Warning
+        message_parts.append(msg_part)
         for skipped_layer in skipped:
-            log_debug(
-                QCoreApplication.translate(
-                    "log_summary", "Skipped layer '{layer}'"
-                ).format(layer=skipped_layer),
-                message_level,
-            )
+            log_debug(f"Skipped layer '{skipped_layer}'", debug_level)
 
     if failures:
-        message_level = Qgis.Warning
-        message_parts.append(
-            QCoreApplication.translate(
-                "log_summary", "Failed to {action} {num_failures} layer(s)."
-            ).format(action=action.lower(), num_failures=len(failures))
-        )
+        # fmt: off
+        msg_part: str = QCoreApplication.translate("log_summary", "Failed to {action} {num_failures} layer(s).").format(action=action.lower(), num_failures=len(failures))  # noqa: E501
+        # fmt: on
+        debug_level = Qgis.Warning
+        message_parts.append(msg_part)
         for failure in failures:
-            log_debug(
-                QCoreApplication.translate(
-                    "log_summary",
-                    "Failed to {action} {fail0}: {fail2}",
-                ).format(action=action.lower(), fail0=failure[0], fail2=failure[2]),
-                message_level,
-            )
+            log_debug(f"Failed to {action} {failure[0]}: {failure[2]}", debug_level)
 
     if not_found:
-        message_level = Qgis.Critical
-        message_parts.append(
-            QCoreApplication.translate(
-                "log_summary", "Could not find {len_not_found} layer(s)."
-            ).format(len_not_found=len(not_found))
-        )
+        # fmt: off
+        msg_part: str = QCoreApplication.translate("log_summary", "Could not find {len_not_found} layer(s).").format(len_not_found=len(not_found))  # noqa: E501
+        # fmt: on
+        debug_level = Qgis.Critical
+        message_parts.append(msg_part)
         for skipped_layer in not_found:  # assuming you have a list of not found layers
-            log_debug(
-                QCoreApplication.translate(
-                    "log_summary", "Could not find '{layer}'"
-                ).format(layer=skipped_layer),
-                message_level,
-            )
+            log_debug(f"Could not find '{skipped_layer}'", debug_level)
 
     if not message_parts:  # If no operations were reported
-        message_level = Qgis.Info
-        message_parts.append(
-            QCoreApplication.translate(
-                "log_summary",
-                "No layers processed or "
-                "all selected layers already have the desired state.",
-            )
-        )
+        # fmt: off
+        msg_part: str = QCoreApplication.translate("log_summary", "No layers processed or all selected layers already have the desired state.")  # noqa: E501
+        # fmt: on
+        debug_level = Qgis.Info
+        message_parts.append(msg_part)
 
-    push_message(
-        QCoreApplication.translate("log_summary", "Summary"),
-        " ".join(message_parts),
-        message_level,
-    )
+    full_message: str = " ".join(message_parts)
+
+    log_debug(full_message, debug_level)
+    show_message(full_message, debug_level)
 
 
 class CustomRuntimeError(Exception):
     """Custom exception for runtime errors in the plugin."""
 
 
-def raise_runtime_error(error_msg: str) -> NoReturn:
-    """Log a critical error and raise a RuntimeError.
-
-    This helper function standardizes error handling by ensuring that a critical
-    error is raised as a Python exception to halt the current operation.
-
-    :param error_msg: The error message to display and include in the exception.
-    :raises RuntimeError: Always raises a RuntimeError with the provided error message.
-    """
-    frame: FrameType | None = inspect.currentframe()
-    if frame and frame.f_back:
-        filename: str = Path(frame.f_back.f_code.co_filename).name
-        lineno: int = frame.f_back.f_lineno
-        error_msg = f"{error_msg} ({filename}: {lineno})"
-
-    push_message(
-        QCoreApplication.translate("RuntimeError", "Error"),
-        error_msg,
-        level=Qgis.Critical,
-    )
-
-    QgsMessageLog.logMessage(error_msg, "Error", level=Qgis.Critical)
-    raise CustomRuntimeError(error_msg)
-
-
 class CustomUserError(Exception):
     """Custom exception for user-related errors in the plugin."""
 
 
+def raise_runtime_error(error_msg: str) -> NoReturn:
+    """Log a critical error, display it, and raise a CustomRuntimeError."""
+
+    file_line_number: str = file_line(inspect.currentframe())
+    error_msg = f"{error_msg}{file_line_number}"
+    log_msg: str = f"{LEVEL_ICON[Qgis.Critical]} {error_msg}"
+    QgsMessageLog.logMessage(f"{log_msg}", LOG_TAG, level=Qgis.Critical)
+
+    show_message(error_msg)
+    raise CustomRuntimeError(error_msg)
+
+
 def raise_user_error(error_msg: str) -> NoReturn:
-    """Log a warning message and raise a UserError.
+    """Log a user-facing warning, display it, and raise a CustomUserError."""
 
-    This helper function standardizes error handling by ensuring that a warning
-    is raised to halt the current operation because of a user error.
+    file_line_number: str = file_line(inspect.currentframe())
+    log_msg: str = f"{LEVEL_ICON[Qgis.Warning]} {error_msg}{file_line_number}"
+    QgsMessageLog.logMessage(f"{log_msg}", LOG_TAG, level=Qgis.Warning)
 
-    :param error_msg: The error message to display and include in the exception.
-    :raises CustomUserError: Always raises a UserError with the provided error message.
-    """
-
-    push_message(
-        QCoreApplication.translate("UserError", "Error"), error_msg, level=Qgis.Critical
-    )
-
-    QgsMessageLog.logMessage(error_msg, "Error", level=Qgis.Critical)
+    show_message(error_msg, level=Qgis.Warning)
     raise CustomUserError(error_msg)

@@ -45,11 +45,10 @@ def get_current_project() -> QgsProject:
     """
     project: QgsProject | None = QgsProject.instance()
     if project is None:
-        raise_runtime_error(
-            QCoreApplication.translate(
-                "RuntimeError", "No QGIS project is currently open."
-            )
-        )
+        # fmt: off
+        msg: str = QCoreApplication.translate("RuntimeError", "No QGIS project is currently open.")
+        # fmt: on
+        raise_runtime_error(msg)
 
     return project
 
@@ -59,27 +58,24 @@ def get_selected_layers() -> list[QgsMapLayer]:
 
     :returns: A list of selected QgsMapLayer objects.
     """
+    # fmt: off
+    # ruff: noqa: E501
+    no_interface:str = QCoreApplication.translate("RuntimeError", "QGIS interface not set.")
+    no_layertree:str = QCoreApplication.translate("RuntimeError", "Could not get layer tree view.")
+    no_selection:str = QCoreApplication.translate("RuntimeError", "No layers or groups selected.")
+    # fmt: on
 
     if iface is None:
-        raise_runtime_error(
-            QCoreApplication.translate("RuntimeError", "QGIS interface not set.")
-        )
+        raise_runtime_error(no_interface)
+
     layer_tree: QgsLayerTreeView | None = iface.layerTreeView()
     if not layer_tree:
-        raise_runtime_error(
-            QCoreApplication.translate("RuntimeError", "Could not get layer tree view.")
-        )
+        raise_runtime_error(no_layertree)
 
     selected_layers: set[QgsMapLayer] = set()
-    if selected_layers is None:
-        raise_runtime_error(
-            QCoreApplication.translate("RuntimeError", "Selected layer is not set.")
-        )
     selected_nodes: list[QgsLayerTreeNode] = layer_tree.selectedNodes()
     if not selected_nodes:
-        raise_user_error(
-            QCoreApplication.translate("UserError", "No layers or groups selected.")
-        )
+        raise_user_error(no_selection)
 
     for node in selected_nodes:
         if isinstance(node, QgsLayerTreeGroup):
@@ -98,11 +94,7 @@ def get_selected_layers() -> list[QgsMapLayer]:
             # Add the single selected layer.
             selected_layers.add(node.layer())
         else:
-            log_debug(
-                QCoreApplication.translate(
-                    "debug", f"Unexpected node type in selection: {type(node)}"
-                )
-            )
+            log_debug(f"Unexpected node type in selection: {type(node)}")
 
     return list(selected_layers)
 
