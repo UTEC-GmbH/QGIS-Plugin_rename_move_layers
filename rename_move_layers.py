@@ -46,6 +46,7 @@ from . import resources
 from .modules import general as ge
 from .modules import logs_and_errors as lae
 from .modules.geopackage import move_layers_to_gpkg
+from .modules.indicator import LayerLocationIndicator
 from .modules.rename import rename_layers, undo_rename_layers
 
 if TYPE_CHECKING:
@@ -70,6 +71,7 @@ class RenameAndMoveLayersToGPKG:  # pylint: disable=too-many-instance-attributes
         self.dlg = None
         self.icon_path = ":/compiled_resources/icon.png"
         self.translator: QTranslator | None = None
+        self.indicator: LayerLocationIndicator | None = None
 
         # Read metadata to get the plugin name for UI elements
         self.plugin_name: str = (
@@ -268,8 +270,32 @@ class RenameAndMoveLayersToGPKG:  # pylint: disable=too-many-instance-attributes
         )
         self.plugin_menu.addAction(rename_move_action)
 
+        # Add an action for marking external layers
+        # fmt: off
+        # ruff: noqa: E501
+        menu_main: str = QCoreApplication.translate("Menu_main", "Refresh External Layer Markers")
+        menu_tip: str = QCoreApplication.translate("Menu_tip", "Refresh the markers for layers stored outside the project folder")
+        menu_whats: str = QCoreApplication.translate("Menu_whats", "Refreshes the layer tree to show or hide the icon for layers whose data source is outside the current project folder.")
+        # fmt: on
+        mark_external_action = self.add_action(
+            self.icon_path,
+            text=menu_main,
+            callback=self.refresh_external_markers,
+            parent=self.iface.mainWindow(),
+            add_to_menu=False,  # Added to custom menu
+            add_to_toolbar=False,
+            status_tip=menu_tip,
+            whats_this=menu_whats,
+        )
+        self.plugin_menu.addAction(mark_external_action)
+
         # Add the fly-out menu to the main "Plugins" menu
         self.iface.pluginMenu().addMenu(self.plugin_menu)  # type: ignore[]
+
+        # Register the custom layer tree indicator
+        if (layer_tree_view := self.iface.layerTreeView()) is not None:
+            self.indicator = LayerLocationIndicator(layer_tree_view)
+            layer_tree_view.addIndicator(self.indicator)
 
         # Add a toolbutton to the toolbar to show the flyout menu
         toolbar_button = QToolButton()
@@ -287,6 +313,11 @@ class RenameAndMoveLayersToGPKG:  # pylint: disable=too-many-instance-attributes
         # Remove the translator
         if self.translator:
             QCoreApplication.removeTranslator(self.translator)
+
+        # Unregister the custom layer tree indicator
+        if self.indicator and (layer_tree_view := self.iface.layerTreeView()):
+            layer_tree_view.removeIndicator(self.indicator)
+            self.indicator = None
 
         # Remove toolbar icons for all actions
         for action in self.actions:
@@ -340,3 +371,11 @@ class RenameAndMoveLayersToGPKG:  # pylint: disable=too-many-instance-attributes
             move_layers_to_gpkg()
         except (lae.CustomUserError, lae.CustomRuntimeError):
             return
+
+    def refresh_external_markers(self) -> None:
+        """Refresh the layer tree view to update external layer indicators."""
+        if layer_tree_view := self.iface.layerTreeView():
+            # Calling refresh will trigger the indicator's willShow method
+            # for all nodes in the tree.
+            layer_tree_view.refresh()
+            lae.log_debug("Refreshed external layer markers.", level=Qgis.Success)
