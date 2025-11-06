@@ -20,12 +20,8 @@ from qgis.core import (
     QgsWkbTypes,
 )
 
-from .general import (
-    EMPTY_LAYER_NAME,
-    GEOMETRY_SUFFIX_MAP,
-    get_current_project,
-    get_selected_layers,
-)
+from .constants import EMPTY_LAYER_NAME, GEOMETRY_SUFFIX_MAP
+from .general import get_current_project, get_selected_layers
 from .logs_and_errors import log_debug, log_summary_message
 
 if TYPE_CHECKING:
@@ -268,32 +264,3 @@ def undo_rename_layers() -> None:
     log_summary_message(
         successes=successful_undos, failures=failed_undos, action="Reverted"
     )
-
-
-def is_layer_external(layer: QgsMapLayer, project_dir: Path) -> bool:
-    """Check if a layer's data source is outside the project directory.
-
-    Args:
-        layer: The QGIS map layer to check.
-        project_dir: The path to the directory of the current QGIS project.
-
-    Returns:
-        True if the layer source is outside the project directory, a web service,
-        or a database connection. False otherwise.
-    """
-    source: str = layer.source()
-    # Split the source string to handle URIs like GeoPackage layers
-    # e.g., "C:/path/data.gpkg|layername=my_layer"
-    path_part: str = source.split("|")[0]
-
-    # Handle non-file-based layers (WMS, WFS, PostGIS, etc.)
-    if not Path(path_part).exists():
-        return True  # Treat web/database services as external
-
-    try:
-        layer_path: Path = Path(path_part).resolve()
-        # A layer is external if its path is not relative to the project directory
-        return not layer_path.is_relative_to(project_dir)
-    except (ValueError, RuntimeError):
-        # Catches errors from invalid paths or if paths are on different drives
-        return True

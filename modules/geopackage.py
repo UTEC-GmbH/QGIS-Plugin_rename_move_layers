@@ -13,6 +13,7 @@ from qgis.core import (
     QgsLayerTree,
     QgsMapLayer,
     QgsProject,
+    QgsVectorDataProvider,
     QgsVectorFileWriter,
     QgsVectorLayer,
     QgsWkbTypes,
@@ -21,13 +22,8 @@ from qgis.PyQt.QtCore import (
     QCoreApplication,  # type: ignore[reportAttributeAccessIssue]
 )
 
-from .general import (
-    EMPTY_LAYER_NAME,
-    GEOMETRY_SUFFIX_MAP,
-    clear_attribute_table,
-    get_current_project,
-    get_selected_layers,
-)
+from .constants import EMPTY_LAYER_NAME, GEOMETRY_SUFFIX_MAP
+from .general import get_current_project, get_selected_layers
 from .logs_and_errors import (
     log_debug,
     log_summary_message,
@@ -37,7 +33,11 @@ from .logs_and_errors import (
 from .rename import geometry_type_suffix
 
 if TYPE_CHECKING:
-    from qgis.core import QgsMapLayerStyle, QgsMapLayerStyleManager
+    from qgis.core import (
+        QgsDataProvider,
+        QgsMapLayerStyle,
+        QgsMapLayerStyleManager,
+    )
 
 
 def project_gpkg() -> Path:
@@ -122,6 +122,29 @@ def check_existing_layer(gpkg_path: Path, layer: QgsMapLayer) -> str:
     base_name: str = re.sub(suffix_pattern, "", layer_name)
 
     return f"{base_name}{geometry_type_suffix(layer)}"
+
+
+def clear_attribute_table(layer: "QgsMapLayer") -> None:
+    """Clear the attribute table of a QGIS layer by deleting all columns.
+
+    Args:
+        layer: The layer whose attribute table should be cleared.
+    """
+    if not isinstance(layer, QgsVectorLayer):
+        # This function only applies to vector layers.
+        return
+
+    provider: QgsDataProvider | None = layer.dataProvider()
+    if not provider:
+        return
+
+    # Check if the provider supports deleting attributes.
+    if not provider.capabilities() & QgsVectorDataProvider.DeleteAttributes:
+        return
+
+    if field_indices := list(range(layer.fields().count())):
+        provider.deleteAttributes(field_indices)
+        layer.updateFields()
 
 
 def add_layers_to_gpkg() -> None:

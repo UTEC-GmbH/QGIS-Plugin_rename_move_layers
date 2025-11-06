@@ -3,36 +3,32 @@
 This module contains the general functions.
 """
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from qgis.core import (
-    Qgis,
     QgsLayerTreeGroup,
     QgsLayerTreeLayer,
-    QgsMapLayer,
     QgsProject,
-    QgsVectorDataProvider,
-    QgsVectorLayer,
 )
 from qgis.gui import QgisInterface
 from qgis.PyQt.QtCore import (
     QCoreApplication,  # type: ignore[reportAttributeAccessIssue]
 )
 
+from .constants import EMPTY_LAYER_NAME
 from .logs_and_errors import log_debug, raise_runtime_error, raise_user_error
 
 if TYPE_CHECKING:
     from qgis._core import QgsLayerTreeNode
     from qgis._gui import QgsLayerTreeView
-    from qgis.core import QgsDataProvider
+    from qgis.core import QgsMapLayer
 
-EMPTY_LAYER_NAME: str = "empty layer"
-GEOMETRY_SUFFIX_MAP: dict[Qgis.GeometryType, str] = {
-    Qgis.GeometryType.Line: "l",
-    Qgis.GeometryType.Point: "pt",
-    Qgis.GeometryType.Polygon: "pg",
-}
+    from ..rename_move_layers import LayerLocation
+
 iface: QgisInterface | None = None
+
+LOCATION_CACHE: dict[str, "LayerLocation"] = {}
 
 
 def get_current_project() -> QgsProject:
@@ -53,7 +49,7 @@ def get_current_project() -> QgsProject:
     return project
 
 
-def get_selected_layers() -> list[QgsMapLayer]:
+def get_selected_layers() -> list["QgsMapLayer"]:
     """Collect all layers selected in the QGIS layer tree view.
 
     :returns: A list of selected QgsMapLayer objects.
@@ -80,7 +76,7 @@ def get_selected_layers() -> list[QgsMapLayer]:
     for node in selected_nodes:
         if isinstance(node, QgsLayerTreeGroup):
             # If a group is selected, add all its layers that are not empty recursively.
-            for layer_node in node.findLayers():
+            for layer_node in node.findLayers():  # type: ignore[attr-defined]
                 layer: QgsMapLayer | None = layer_node.layer()
                 if layer and layer.name() != EMPTY_LAYER_NAME:
                     selected_layers.add(layer_node.layer())
@@ -99,23 +95,48 @@ def get_selected_layers() -> list[QgsMapLayer]:
     return list(selected_layers)
 
 
-def clear_attribute_table(layer: QgsMapLayer) -> None:
-    """Clear the attribute table of a QGIS layer by deleting all columns.
+def get_layer_location(layer: "QgsMapLayer") -> "LayerLocation":
+    """Determine the location of the layer's data source with caching.
 
-    :param layer: The layer whose attribute table should be cleared.
+    Args:
+        layer: The QGIS map layer to check.
+
+    Returns:
+        A LayerLocation enum member indicating the layer's data source location.
     """
-    if not isinstance(layer, QgsVectorLayer):
-        # This function only applies to vector layers.
-        return
+    from ..rename_move_layers import LayerLocation
+    from .geopackage import project_gpkg
 
-    provider: QgsDataProvider | None = layer.dataProvider()
-    if not provider:
-        return
+    if layer.id() in LOCATION_CACHE:
+        return LOCATION_CACHE[layer.id()]
 
-    # Check if the provider supports deleting attributes.
-    if not provider.capabilities() & QgsVectorDataProvider.DeleteAttributes:
-        return
+    if (project := get_current_project()) is None or not project.fileName():
+        return LayerLocation.UNKNOWN
 
-    if field_indices := list(range(layer.fields().count())):
-        provider.deleteAttributes(field_indices)
-        layer.updateFields()
+    project_dir: Path = Path(project.fileName()).parent.resolve()
+    try:
+        gpkg_path: Path | None = project_gpkg()
+    except Exception:
+        gpkg_path = None
+
+    source: str = layer.source()
+    path_part: str = source.split("|")[0]
+
+    if not path_part or not Path(path_part).exists():
+        location = LayerLocation.NON_FILE
+    else:
+        try:
+            layer_path: Path = Path(path_part).resolve()
+
+            if gpkg_path and layer_path == gpkg_path.resolve():
+                location = LayerLocation.IN_PROJECT_GPKG
+            elif layer_path.is_relative_to(project_dir):
+                location = LayerLocation.IN_PROJECT_FOLDER
+            else:
+                location = LayerLocation.EXTERNAL
+        except (ValueError, RuntimeError):
+            # Catches errors from invalid paths or if paths are on different drives
+            location = LayerLocation.EXTERNAL
+
+    LOCATION_CACHE[layer.id()] = location
+    return location
