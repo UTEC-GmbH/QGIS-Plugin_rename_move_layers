@@ -1,36 +1,19 @@
 """Mark the source of the data."""
 
-from enum import Enum, auto
+from typing import TYPE_CHECKING
 
-from qgis.PyQt.QtCore import QCoreApplication
+from qgis._core import QgsLayerTreeNode
+from qgis.gui import QgsLayerTreeView, QgsLayerTreeViewIndicator
+from qgis.PyQt.QtCore import QModelIndex, Qt
+from PyQt5.QtWidgets import QStyleOptionViewItem
+from PyQt5.QtGui import QPainter
 
+from .general import get_layer_location
 
-class LayerLocation(Enum):
-    """Enumeration for layer data source locations."""
+if TYPE_CHECKING:
+    from qgis.core import QgsLayerTreeNode
 
-    IN_PROJECT_GPKG = auto()
-    IN_PROJECT_FOLDER = auto()
-    EXTERNAL = auto()
-    NON_FILE = auto()  # For web services, databases, etc.
-    UNKNOWN = auto()
-
-
-LOCATION_EMOJI_MAP: dict[LayerLocation, str] = {
-    LayerLocation.IN_PROJECT_GPKG: "✅",
-    LayerLocation.IN_PROJECT_FOLDER: "📂",
-    LayerLocation.EXTERNAL: "‼️☠️‼️",
-    LayerLocation.NON_FILE: "☁️",
-}
-
-# fmt: off
-# ruff: noqa: E501
-LOCATION_TOOLTIP_MAP: dict[LayerLocation, str] = {
-    LayerLocation.IN_PROJECT_GPKG: QCoreApplication.translate("LayerLocation", "Layer is stored in the project GeoPackage."),
-    LayerLocation.IN_PROJECT_FOLDER: QCoreApplication.translate("LayerLocation", "Layer is stored in the project folder."),
-    LayerLocation.EXTERNAL: QCoreApplication.translate("LayerLocation", "Layer data source is outside the project folder."),
-    LayerLocation.NON_FILE: QCoreApplication.translate("LayerLocation", "Layer is from a web service or database."),
-}
-# fmt: on
+    from .constants import LayerLocation
 
 
 class LayerLocationIndicator(QgsLayerTreeViewIndicator):
@@ -45,29 +28,30 @@ class LayerLocationIndicator(QgsLayerTreeViewIndicator):
         """Return the unique identifier for this indicator."""
         return "LayerLocationIndicator"
 
-    def willShow(self, node: "QgsLayerTreeNode") -> bool:  # type: ignore[override] # noqa: N802
+    def willShow(self, node: "QgsLayerTreeNode") -> bool:  # noqa: N802
         """Determine if the indicator should be shown for a given node."""
         return self.view.layerForNode(node) is not None
 
     def paint(
         self,
-        painter: "QPainter",
-        option: "QStyleOptionViewItem",
-        index: "QModelIndex",
+        painter: QPainter,
+        option: QStyleOptionViewItem,
+        index: QModelIndex,
     ) -> None:
         """Paint the indicator icon."""
-        node = self.view.index2node(index)
+        node: QgsLayerTreeNode | None = self.view.index2node(index)
         if (layer := self.view.layerForNode(node)) is None:
             return
 
-        location = ge.get_layer_location(layer)
-        if emoji := LOCATION_EMOJI_MAP.get(location):
-            painter.drawText(option.rect, int(Qt.AlignCenter), emoji)
+        location: LayerLocation = get_layer_location(layer)
+        if location.emoji:
+            painter.drawText(option.rect, int(Qt.AlignCenter), location.emoji)
 
-    def toolTip(self, index: "QModelIndex") -> str:  # type: ignore[override]  # noqa: N802
+    def toolTip(self, index: QModelIndex) -> str:  # type: ignore[override]  # noqa: N802
         """Provide a tooltip for the indicator."""
-        node = self.view.index2node(index)
+        node: QgsLayerTreeNode | None = self.view.index2node(index)
         if (layer := self.view.layerForNode(node)) is None:
             return ""
-        location = ge.get_layer_location(layer)
-        return LOCATION_TOOLTIP_MAP.get(location, "")
+
+        location: LayerLocation = get_layer_location(layer)
+        return location.tooltip

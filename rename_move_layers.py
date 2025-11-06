@@ -47,6 +47,7 @@ from .modules import general as ge
 from .modules import logs_and_errors as lae
 from .modules.geopackage import move_layers_to_gpkg
 from .modules.rename import rename_layers, undo_rename_layers
+from .modules.source_indicator import LayerLocationIndicator
 
 if TYPE_CHECKING:
     from qgis.gui import QgsMessageBar
@@ -70,6 +71,7 @@ class RenameAndMoveLayersToGPKG:  # pylint: disable=too-many-instance-attributes
         self.dlg = None
         self.icon_path = ":/compiled_resources/icon.png"
         self.translator: QTranslator | None = None
+        self._location_indicator = None
 
         # Read metadata to get the plugin name for UI elements
         self.plugin_name: str = (
@@ -181,6 +183,12 @@ class RenameAndMoveLayersToGPKG:  # pylint: disable=too-many-instance-attributes
 
         # Initialize the resources (icons, etc.)
         resources.qInitResources()
+
+        # Location indicators
+        view: ge.QgsLayerTreeView | None = self.iface.layerTreeView()
+        if view is not None:
+            self._location_indicator = LayerLocationIndicator(view)
+            view.addIndicator(None, self._location_indicator)
 
         # Create a menu for the plugin in the "Plugins" menu
         self.plugin_menu = QMenu(self.menu, self.iface.pluginMenu())

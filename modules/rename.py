@@ -20,9 +20,8 @@ from qgis.core import (
     QgsWkbTypes,
 )
 
+from .constants import EMPTY_LAYER_NAME, GEOMETRY_SUFFIX_MAP
 from .general import (
-    EMPTY_LAYER_NAME,
-    GEOMETRY_SUFFIX_MAP,
     get_current_project,
     get_selected_layers,
     raise_runtime_error,
