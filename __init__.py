@@ -30,6 +30,6 @@ def classFactory(iface):  # pylint: disable=invalid-name
     :param iface: A QGIS interface instance.
     :type iface: QgsInterface
     """
-    from .rename_move_layers import RenameAndMoveLayersToGPKG
+    from .UTEC_layer_tools import UTECLayerTools
 
-    return RenameAndMoveLayersToGPKG(iface)
+    return UTECLayerTools(iface)

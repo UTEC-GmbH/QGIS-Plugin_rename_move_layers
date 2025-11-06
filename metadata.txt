@@ -1,5 +1,5 @@
 [general]
-name=UTEC umbenennen und speichern (dev)
+name=UTEC Layer Tools (dev)
 
 version=0.3
 changelog=
@@ -7,7 +7,7 @@ changelog=
     - Beim Verschieben wird der Stil des Layers vom Ursprungslayer übernommen
     - Umbenennen kann rückgängig gemacht werden.
 
-description=Gewählte Layer werde umbenannt (falls sie in einer Gruppe sind) und in das Projekt-GeoPackage verschoben. (hilfreich nach CAD-Import)
+description=Verschiedene Werkzeuge zur Darstellung, Benennung und zum Speichern von Layern. 
 qgisMinimumVersion=3.0
 author=Florian Ludwig
 email=immerse-vowel-dole@duck.com

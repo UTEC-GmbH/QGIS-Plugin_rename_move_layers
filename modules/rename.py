@@ -203,7 +203,7 @@ def rename_layers() -> None:
         # Store the list of successful renames in the project file.
         # The list is stored as a JSON string.
         project.writeEntry(
-            "rename_move_layers", "last_rename", json.dumps(successful_renames)
+            "UTEC_Layer_Tools", "last_rename", json.dumps(successful_renames)
         )
 
     log_summary_message(
@@ -218,7 +218,7 @@ def rename_layers() -> None:
 def undo_rename_layers() -> None:
     """Reverts the last renaming operation."""
     project: QgsProject = get_current_project()
-    last_rename_json, found = project.readEntry("rename_move_layers", "last_rename", "")
+    last_rename_json, found = project.readEntry("UTEC_Layer_Tools", "last_rename", "")
 
     if not found or not last_rename_json:
         log_debug("No rename operation found in history to undo.", Qgis.Warning)
@@ -261,7 +261,7 @@ def undo_rename_layers() -> None:
 
     # Clear the history after a successful undo to prevent multiple undos.
     if successful_undos > 0:
-        project.removeEntry("rename_move_layers", "last_rename")
+        project.removeEntry("UTEC_Layer_Tools", "last_rename")
 
     log_summary_message(
         successes=successful_undos, failures=failed_undos, action="Reverted"

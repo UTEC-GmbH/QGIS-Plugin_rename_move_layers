@@ -2,13 +2,14 @@
 
 from typing import TYPE_CHECKING
 
+from PyQt5.QtGui import QPainter
+from PyQt5.QtWidgets import QStyleOptionViewItem
 from qgis._core import QgsLayerTreeNode
 from qgis.gui import QgsLayerTreeView, QgsLayerTreeViewIndicator
 from qgis.PyQt.QtCore import QModelIndex, Qt
-from PyQt5.QtWidgets import QStyleOptionViewItem
-from PyQt5.QtGui import QPainter
 
 from .general import get_layer_location
+from .logs_and_errors import log_debug
 
 if TYPE_CHECKING:
     from qgis.core import QgsLayerTreeNode
@@ -30,6 +31,7 @@ class LayerLocationIndicator(QgsLayerTreeViewIndicator):
 
     def willShow(self, node: "QgsLayerTreeNode") -> bool:  # noqa: N802
         """Determine if the indicator should be shown for a given node."""
+        log_debug(f"willShow called for node: {node.name()}")
         return self.view.layerForNode(node) is not None
 
     def paint(
@@ -44,6 +46,7 @@ class LayerLocationIndicator(QgsLayerTreeViewIndicator):
             return
 
         location: LayerLocation = get_layer_location(layer)
+        log_debug(f"paint called for layer: {layer.name()} → {location.emoji}")
         if location.emoji:
             painter.drawText(option.rect, int(Qt.AlignCenter), location.emoji)
 
@@ -55,3 +58,8 @@ class LayerLocationIndicator(QgsLayerTreeViewIndicator):
 
         location: LayerLocation = get_layer_location(layer)
         return location.tooltip
+
+    def refresh(self) -> None:
+        """Force a repaint of the layer tree view to update the indicator."""
+        if self.view and self.view.viewport():
+            self.view.viewport().update()
