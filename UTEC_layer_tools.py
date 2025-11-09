@@ -26,11 +26,12 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from qgis.core import Qgis, QgsLayerTree, QgsProject
+from qgis.core import Qgis, QgsProject
 from qgis.gui import QgisInterface
 from qgis.PyQt.QtCore import (
     QCoreApplication,
     QSettings,
+    QTimer,
     QTranslator,
 )
 from qgis.PyQt.QtGui import QIcon
@@ -43,9 +44,10 @@ from qgis.PyQt.QtWidgets import (
 from . import resources
 from .modules import general as ge
 from .modules import logs_and_errors as lae
+from .modules.general import clear_layer_location_cache
 from .modules.geopackage import move_layers_to_gpkg
 from .modules.rename import rename_layers, undo_rename_layers
-from .modules.source_indicator import LayerLocationIndicator
+from .modules.source_indicator import LayerLocationDelegate
 
 if TYPE_CHECKING:
     from qgis.gui import QgsMessageBar
@@ -66,15 +68,14 @@ class UTECLayerTools:  # pylint: disable=too-many-instance-attributes
         self.plugin_dir: Path = Path(__file__).parent
         self.actions: list = []
         self.plugin_menu: QMenu | None = None
-        self.dlg = None
         self.icon_path = ":/compiled_resources/icon.png"
         self.translator: QTranslator | None = None
-        self._location_indicator: LayerLocationIndicator | None = None
+        self.location_delegate: LayerLocationDelegate | None = None
+        self._indicator_global: bool = False
+        lae.log_debug("Plugin init: created UTECLayerTools instance")
 
         # Read metadata to get the plugin name for UI elements
-        self.plugin_name: str = (
-            "UTEC Layer umbenennen und in GPKG speichern (dev)"  # Default
-        )
+        self.plugin_name: str = "UTEC Layer Tools (dev)"
         metadata_path: Path = self.plugin_dir / "metadata.txt"
         if metadata_path.exists():
             config = configparser.ConfigParser()
@@ -85,10 +86,6 @@ class UTECLayerTools:  # pylint: disable=too-many-instance-attributes
                 lae.log_debug("Could not read name from metadata.txt", Qgis.Warning)
 
         self.menu: str = self.plugin_name
-
-        view: ge.QgsLayerTreeView | None = self.iface.layerTreeView()
-        if view is not None:
-            self._location_indicator = LayerLocationIndicator(view)
 
         # initialize translation
         locale = QSettings().value("locale/userLocale", "en")[:2]
@@ -196,6 +193,9 @@ class UTECLayerTools:  # pylint: disable=too-many-instance-attributes
 
         self.plugin_menu.setIcon(QIcon(self.icon_path))
 
+        # Create the source indicator for the location of the layer source data
+        self.setup_source_indicator()
+
         # Add an action for updating layers source location indicators
         # fmt: off
         # ruff: noqa: E501
@@ -206,7 +206,7 @@ class UTECLayerTools:  # pylint: disable=too-many-instance-attributes
         refresh_action = self.add_action(
             self.icon_path,
             text=menu_main,
-            callback=self._location_indicator.refresh,
+            callback=self.refresh_indicators,
             parent=self.iface.mainWindow(),
             add_to_menu=False,  # Will be added to our custom menu
             add_to_toolbar=False,  # Avoid creating a separate toolbar button
@@ -302,72 +302,99 @@ class UTECLayerTools:  # pylint: disable=too-many-instance-attributes
         toolbar_action = self.iface.addToolBarWidget(toolbar_button)
         self.actions.append(toolbar_action)
 
-        # Create the source indicator for the location of the layer source data
-        self.setup_source_indicator()
-
     def setup_source_indicator(self) -> None:
-        """Initialize and connect the layer source indicator."""
+        """Initialize and connect the layer source indicator (issue #1 and #7)."""
         view: ge.QgsLayerTreeView | None = self.iface.layerTreeView()
         if view is None:
-            lae.log_debug("Could not get layer tree view for indicator.", Qgis.Warning)
-            return
-        self._location_indicator = LayerLocationIndicator(view)
-
-        project: QgsProject | None = QgsProject.instance()
-        if project is None:
-            lae.log_debug("Could not get project for indicator.", Qgis.Warning)
+            lae.log_debug("Indicator setup: no layer tree view", Qgis.Warning)
             return
 
-        root_node: QgsLayerTree | None = project.layerTreeRoot()
-        if root_node is None:
-            lae.log_debug("Could not get layer tree root node.", Qgis.Warning)
-            return
+        # This is the most backward-compatible method. We replace the default
+        # delegate with our custom one, which first calls the original
+        # delegate's paint method and then paints our icon on top.
+        base_delegate = view.itemDelegate()
+        self.location_delegate = LayerLocationDelegate(view, base_delegate)
+        view.setItemDelegate(self.location_delegate)
+        lae.log_debug("Indicator setup: custom delegate has been set")
 
-        view.addIndicator(root_node, self._location_indicator)
+        project = QgsProject.instance()
+        root_node = project.layerTreeRoot()
 
-        # Refresh when the layer tree model is reset (e.g., project load)
-        if (model := view.model()) is None:
-            lae.log_debug(
-                "Could not get layer tree model to connect signals.", Qgis.Warning
-            )
-            return
-        if (source_model := model.sourceModel()) is None:
-            lae.log_debug(
-                "Could not get source model to connect signals.", Qgis.Warning
-            )
-            return
-        source_model.modelReset.connect(self._location_indicator.refresh)
-        project.readProject.connect(self._location_indicator.refresh)
+        def _refresh_view_only() -> None:
+            """Force a repaint of the layer tree view."""
+            lae.log_debug("Delegate: refresh requested")
+            if view and view.viewport():
+                view.viewport().update()
+
+        # On changes: clear cache, re-attach (for fallback), and refresh
+        def _rebind_and_refresh_all() -> None:
+            lae.log_debug("Signal: rebind_all")
+            clear_layer_location_cache()
+            # Defer refresh to allow QGIS to process changes first
+            QTimer.singleShot(0, _refresh_view_only)
+
+        def _on_layer_added(layer) -> None:  # type: ignore[no-redef]
+            lae.log_debug(f"Signal: layerWasAdded id={layer.id()} name={layer.name()}")
+            clear_layer_location_cache()
+            QTimer.singleShot(0, _refresh_view_only)
+
+        def _on_layer_removed(_layer_id: str) -> None:
+            lae.log_debug(f"Signal: layerWillBeRemoved id={_layer_id}")
+            clear_layer_location_cache()
+            QTimer.singleShot(0, _refresh_view_only)
+
+        project.readProject.connect(_rebind_and_refresh_all)
+        root_node.customPropertyChanged.connect(_rebind_and_refresh_all)
+        project.layerWasAdded.connect(_on_layer_added)
+        project.layerWillBeRemoved.connect(_on_layer_removed)
 
     def unload(self) -> None:
         """Plugin unload method.
 
         Called when the plugin is unloaded according to the plugin QGIS metadata.
         """
-        # Remove the translator
-        if self.translator:
-            QCoreApplication.removeTranslator(self.translator)
-
         # Disconnect indicator signals
-        if self._location_indicator:
-            if (view := self.iface.layerTreeView()) and (model := view.model()):
-                model.modelReset.disconnect(self._location_indicator.refresh)
-            if project := QgsProject.instance():
-                project.readProject.disconnect(self._location_indicator.refresh)
+        project = QgsProject.instance()
+        if project:
+            root = project.layerTreeRoot()
+            try:
+                project.readProject.disconnect()
+            except Exception:
+                pass
+            try:
+                root.customPropertyChanged.disconnect()
+            except Exception:
+                pass
+            except AttributeError:  # root might be None
+                pass
 
         # Remove toolbar icons for all actions
         for action in self.actions:
             self.iface.removeToolBarIcon(action)
 
         # Remove the plugin menu from the "Plugins" menu.
-        if self.plugin_menu:
-            self.iface.pluginMenu().removeAction(self.plugin_menu.menuAction())  # type: ignore[]
+        if self.plugin_menu and (menu := self.iface.pluginMenu()):
+            menu.removeAction(self.plugin_menu.menuAction())
+
+        # Remove the translator
+        if self.translator:
+            QCoreApplication.removeTranslator(self.translator)
 
         self.actions.clear()
         self.plugin_menu = None
 
         # Unload resources to allow for reloading them
         resources.qCleanupResources()
+
+    def refresh_indicators(self) -> None:
+        """Safely refresh indicators if available."""
+        try:
+            lae.log_debug("Action: manual refresh indicators")
+            view = self.iface.layerTreeView()
+            if view and view.viewport():
+                view.viewport().update()
+        except Exception as e:
+            lae.log_debug(f"Manual refresh failed: {e}")
 
     def rename_selected_layers(self) -> None:
         """Call rename function from 'functions_rename.py'."""

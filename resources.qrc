@@ -1,5 +1,10 @@
 <RCC>
     <qresource prefix="/compiled_resources" >
         <file>icon.png</file>
+        <file>icons/cloud.svg</file>
+        <file>icons/external.svg</file>
+        <file>icons/folder.svg</file>
+        <file>icons/gpkg.svg</file>
+        <file>icons/unknown.svg</file>
     </qresource>
 </RCC>

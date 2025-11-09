@@ -1,11 +1,10 @@
 [general]
 name=UTEC Layer Tools (dev)
 
-version=0.3
+version=0.4
 changelog=
-    Version 0.3:
-    - Beim Verschieben wird der Stil des Layers vom Ursprungslayer übernommen
-    - Umbenennen kann rückgängig gemacht werden.
+    Version 0.4:
+    - Symbole, die die Datenquelle der Layer anzeigen
 
 description=Verschiedene Werkzeuge zur Darstellung, Benennung und zum Speichern von Layern. 
 qgisMinimumVersion=3.0

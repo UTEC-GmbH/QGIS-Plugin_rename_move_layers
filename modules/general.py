@@ -3,10 +3,11 @@
 This module contains the general functions.
 """
 
+import os
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from osgeo import ogr
 from qgis.core import (
     QgsLayerTreeGroup,
     QgsLayerTreeLayer,
@@ -22,6 +23,18 @@ from qgis.PyQt.QtCore import (
 
 from .constants import EMPTY_LAYER_NAME, LayerLocation
 from .logs_and_errors import log_debug, raise_runtime_error, raise_user_error
+
+# Lightweight cache for layer locations to avoid recomputation in paint (issue #7)
+_LAYER_LOCATION_CACHE: dict[str, LayerLocation] = {}
+
+
+def clear_layer_location_cache() -> None:
+    """Clear the cached layer locations.
+
+    Call this from plugin hooks when project or layers change.
+    """
+    _LAYER_LOCATION_CACHE.clear()
+
 
 if TYPE_CHECKING:
     from qgis._core import QgsLayerTreeNode
@@ -118,15 +131,12 @@ def clear_attribute_table(layer: QgsMapLayer) -> None:
 
 
 def project_gpkg() -> Path:
-    """Check if a GeoPackage with the same name as the project
-    exists in the project folder and creates it if not.
+    """Return the expected GeoPackage path for the current project without I/O side effects.
 
-    Example: for a project 'my_project.qgz',
-    it looks for 'my_project.gpkg' in the same directory.
+    Example: for a project 'my_project.qgz', returns 'my_project.gpkg' in the same directory.
 
     :returns: The Path object to the GeoPackage.
     :raises UserError: If the project is not saved.
-    :raises IOError: If the GeoPackage file cannot be created.
     """
     project: QgsProject = get_current_project()
     project_path_str: str = project.fileName()
@@ -139,19 +149,37 @@ def project_gpkg() -> Path:
     project_path: Path = Path(project_path_str)
     gpkg_path: Path = project_path.with_suffix(".gpkg")
 
-    if not gpkg_path.exists():
-        driver = ogr.GetDriverByName("GPKG")
-        data_source = driver.CreateDataSource(str(gpkg_path))
-        if data_source is None:
-            # fmt: off
-            msg: str = QCoreApplication.translate("RuntimeError", "Failed to create GeoPackage at: {0}").format(gpkg_path)
-            # fmt: on
-            raise_runtime_error(msg)
-
-        # Dereference the data source to close the file and release the lock.
-        data_source = None
-
+    # Do NOT create the file here (issue #3)
     return gpkg_path
+
+
+def _paths_equal(a: Path, b: Path) -> bool:
+    """Robust path equality across platforms and links (issue #4)."""
+    try:
+        # Prefer samefile when possible
+        return a.exists() and b.exists() and a.samefile(b)
+    except Exception:
+        # Fall back to case-insensitive normalized comparison on Windows
+        if sys.platform.startswith("win"):
+            return os.path.normcase(str(a.resolve(strict=False))) == os.path.normcase(
+                str(b.resolve(strict=False))
+            )
+        return str(a.resolve(strict=False)) == str(b.resolve(strict=False))
+
+
+def _is_within(child: Path, parent: Path) -> bool:
+    """Return True if child path is within parent directory (issue #4, py<3.9)."""
+    try:
+        # Python 3.9+
+        return child.resolve(strict=False).is_relative_to(parent.resolve(strict=False))  # type: ignore[attr-defined]
+    except Exception:
+        try:
+            child_res = child.resolve(strict=False)
+            parent_res = parent.resolve(strict=False)
+            common = os.path.commonpath([str(child_res), str(parent_res)])
+            return common == str(parent_res)
+        except Exception:
+            return False
 
 
 def get_layer_location(layer: "QgsMapLayer") -> "LayerLocation":
@@ -163,33 +191,45 @@ def get_layer_location(layer: "QgsMapLayer") -> "LayerLocation":
     Returns:
         A LayerLocation enum member indicating the layer's data source location.
     """
+    # Cache lookup (issue #7)
+    try:
+        lid = layer.id()
+        if lid in _LAYER_LOCATION_CACHE:
+            return _LAYER_LOCATION_CACHE[lid]
+    except Exception:
+        # If for any reason layer.id() fails, skip cache.
+        pass
 
-    if (project := get_current_project()) is None or not project.fileName():
+    project: QgsProject = get_current_project()
+    if not project.fileName():
         return LayerLocation.UNKNOWN
 
     project_dir: Path = Path(project.fileName()).parent.resolve()
-    try:
-        gpkg_path: Path | None = project_gpkg()
-    except Exception:
-        gpkg_path = None
+    gpkg_path: Path = project_gpkg()
 
     source: str = layer.source()
     path_part: str = source.split("|")[0]
 
-    if not path_part or not Path(path_part).exists():
+    if not path_part:
         location = LayerLocation.NON_FILE
     else:
+        p = Path(path_part)
         try:
-            layer_path: Path = Path(path_part).resolve()
-
-            if gpkg_path and layer_path == gpkg_path.resolve():
+            layer_path: Path = p.resolve(strict=False)
+            if _paths_equal(layer_path, gpkg_path):
                 location = LayerLocation.IN_PROJECT_GPKG
-            elif layer_path.is_relative_to(project_dir):
+            elif _is_within(layer_path, project_dir):
                 location = LayerLocation.IN_PROJECT_FOLDER
             else:
                 location = LayerLocation.EXTERNAL
-        except (ValueError, RuntimeError):
+        except Exception:
             # Catches errors from invalid paths or if paths are on different drives
             location = LayerLocation.EXTERNAL
+
+    # Store in cache (issue #7)
+    try:
+        _LAYER_LOCATION_CACHE[layer.id()] = location
+    except Exception:
+        pass
 
     return location
