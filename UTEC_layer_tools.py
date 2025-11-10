@@ -48,6 +48,7 @@ from .modules.general import get_current_project
 from .modules.geopackage import move_layers_to_gpkg
 from .modules.layer_location import add_location_indicator
 from .modules.rename import rename_layers, undo_rename_layers
+import contextlib
 
 if TYPE_CHECKING:
     from qgis.gui import QgsLayerTreeView, QgsMessageBar
@@ -70,7 +71,7 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
         self.plugin_dir: Path = Path(__file__).parent
         self.actions: list = []
         self.plugin_menu: QMenu | None = None
-        self.icon_path = ":/compiled_resources/icon.png"
+        self.icon_path = ":/compiled_resources_LayerTools/icon.svg"
         self.translator: QTranslator | None = None
         self.location_indicators: dict = {}
 
@@ -200,25 +201,6 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
         self.project.layerWasAdded.connect(self._location_indicators)
         self.project.layerWillBeRemoved.connect(self._location_indicators)
 
-        # Add an action for updating layers source location indicators
-        # fmt: off
-        # ruff: noqa: E501
-        # menu_main: str = QCoreApplication.translate("Menu_main", "Reload locaction indicators")
-        # menu_tip: str = QCoreApplication.translate("Menu_tip", "Reloads the location indicators for all layers in the project.")
-        # menu_whats: str = QCoreApplication.translate("Menu_whats", "The location indicators show the location for the source data for each layer.")
-        # # fmt: on
-        # refresh_action = self.add_action(
-        #     self.icon_path,
-        #     text=menu_main,
-        #     callback=self.refresh_indicators,
-        #     parent=self.iface.mainWindow(),
-        #     add_to_menu=False,  # Will be added to our custom menu
-        #     add_to_toolbar=False,  # Avoid creating a separate toolbar button
-        #     status_tip=menu_tip,
-        #     whats_this=menu_whats,
-        # )
-        # self.plugin_menu.addAction(refresh_action)
-
         # Add an action for renaming layers
         # fmt: off
         # ruff: noqa: E501
@@ -227,7 +209,7 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
         menu_whats: str = QCoreApplication.translate("Menu_whats", "Renames selected layers to match their parent group's name.")
         # fmt: on
         rename_action = self.add_action(
-            self.icon_path,
+            icon_path=":/compiled_resources_LayerTools/icons/main_rename.svg",
             text=menu_main,
             callback=self.rename_selected_layers,
             parent=self.iface.mainWindow(),
@@ -246,7 +228,7 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
         menu_whats: str = QCoreApplication.translate("Menu_whats", "Undoes the most recent layer renaming operation performed by this plugin.")
         # fmt: on
         undo_rename_action = self.add_action(
-            self.icon_path,
+            icon_path=":/compiled_resources_LayerTools/icons/main_undo.svg",
             text=menu_main,
             callback=self.undo_last_rename,
             parent=self.iface.mainWindow(),
@@ -265,7 +247,7 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
         menu_whats: str = QCoreApplication.translate("Menu_whats", "Copies selected layers to the project's GeoPackage (a GeoPackage in the project folder with the same name as the project file) and adds them back from the GeoPackage to the layer tree of the project.")
         # fmt: on
         move_action = self.add_action(
-            self.icon_path,
+            icon_path=":/compiled_resources_LayerTools/icons/main_move.svg",
             text=menu_main,
             callback=self.move_selected_layers,
             parent=self.iface.mainWindow(),
@@ -284,7 +266,7 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
         menu_whats: str = QCoreApplication.translate("Menu_whats", "Renames the selected layers to their parent group names, then copies them to the project's GeoPackage (a GeoPackage in the project folder with the same name as the project file) and adds them back from the GeoPackage to the layer tree of the project.")
         # fmt: on
         rename_move_action = self.add_action(
-            self.icon_path,
+            icon_path=":/compiled_resources_LayerTools/icons/main_rename_move.svg",
             text=menu_main,
             callback=self.rename_and_move_layers,
             parent=self.iface.mainWindow(),
@@ -323,18 +305,12 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
             self.location_indicators = {}
 
         if self.project:
-            try:
+            with contextlib.suppress(Exception):
                 self.project.readProject.disconnect()
-            except Exception:
-                pass
-            try:
+            with contextlib.suppress(Exception):
                 self.project.layerWasAdded.disconnect()
-            except Exception:
-                pass
-            try:
+            with contextlib.suppress(Exception):
                 self.project.layerWillBeRemoved.disconnect()
-            except Exception:
-                pass
 
         # Remove toolbar icons for all actions
         for action in self.actions:

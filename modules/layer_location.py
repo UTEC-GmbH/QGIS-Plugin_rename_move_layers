@@ -5,68 +5,25 @@ Determine the location of the layer's data source.
 
 import os
 import sys
-from dataclasses import dataclass
-from enum import Enum
 from pathlib import Path
 
-from PyQt5.QtGui import QIcon
 from qgis.core import QgsMapLayer, QgsProject
 from qgis.gui import QgisInterface, QgsLayerTreeViewIndicator
-from qgis.PyQt.QtCore import QCoreApplication
 
+from .constants import LayerLocation
 from .general import get_current_project, project_gpkg
 from .logs_and_errors import log_debug
-
-
-@dataclass
-class LayerLocationInfo:
-    """Holds display information for a layer's location."""
-
-    icon: QIcon
-    tooltip: str
-
-
-# fmt: off
-# ruff: noqa: E501
-class LayerLocation(LayerLocationInfo, Enum):
-    """Enumeration for layer locations with associated display info."""
-
-    IN_PROJECT_GPKG = (
-        QIcon(":/compiled_resources/icons/location_gpkg.svg"),
-        QCoreApplication.translate("LayerLocation", "Layer is stored in the project GeoPackage."),
-    )
-    IN_PROJECT_FOLDER = (
-        QIcon(":/compiled_resources/icons/location_folder.svg"),
-        QCoreApplication.translate("LayerLocation", "Layer is stored in the project folder. Consider saving to the GeoPackage."),
-    )
-    EXTERNAL = (
-        QIcon(":/compiled_resources/icons/location_external.svg"),
-        QCoreApplication.translate("LayerLocation", "Caution: Layer data source is outside the project folder. Please move to the project folder."),
-    )
-    NON_FILE = (
-        QIcon(":/compiled_resources/icons/location_cloud.svg"),
-        QCoreApplication.translate("LayerLocation", "Layer is from a web service or database."),
-    )
-    UNKNOWN = (
-        QIcon(":/compiled_resources/icons/location_unknown.svg"),
-        QCoreApplication.translate("LayerLocation", "Layer data source unknown."),
-    )
-# fmt: on
 
 
 def _is_within(child: Path, parent: Path) -> bool:
     """Return True if child path is within parent directory (issue #4, py<3.9)."""
     try:
-        # Python 3.9+
-        return child.resolve(strict=False).is_relative_to(parent.resolve(strict=False))  # type: ignore[attr-defined]
+        child_res = child.resolve(strict=False)
+        parent_res = parent.resolve(strict=False)
+        common = os.path.commonpath([str(child_res), str(parent_res)])
+        return common == str(parent_res)
     except Exception:
-        try:
-            child_res = child.resolve(strict=False)
-            parent_res = parent.resolve(strict=False)
-            common = os.path.commonpath([str(child_res), str(parent_res)])
-            return common == str(parent_res)
-        except Exception:
-            return False
+        return False
 
 
 def _paths_equal(a: Path, b: Path) -> bool:
