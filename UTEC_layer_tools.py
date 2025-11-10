@@ -26,12 +26,12 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from qgis.core import Qgis, QgsProject
+from qgis.core import Qgis, QgsLayerTree, QgsProject
 from qgis.gui import QgisInterface
 from qgis.PyQt.QtCore import (
     QCoreApplication,
+    QObject,
     QSettings,
-    QTimer,
     QTranslator,
 )
 from qgis.PyQt.QtGui import QIcon
@@ -44,24 +44,26 @@ from qgis.PyQt.QtWidgets import (
 from . import resources
 from .modules import general as ge
 from .modules import logs_and_errors as lae
-from .modules.general import clear_layer_location_cache
+from .modules.general import get_current_project
 from .modules.geopackage import move_layers_to_gpkg
+from .modules.layer_location import add_location_indicator
 from .modules.rename import rename_layers, undo_rename_layers
-from .modules.source_indicator import LayerLocationDelegate
 
 if TYPE_CHECKING:
-    from qgis.gui import QgsMessageBar
+    from qgis.gui import QgsLayerTreeView, QgsMessageBar
 
 
-class UTECLayerTools:  # pylint: disable=too-many-instance-attributes
-    """QGIS Plugin for renaming and moving layers to a GeoPackage."""
+class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
+    """QGIS Plugin for actions on layers."""
 
     def __init__(self, iface: QgisInterface) -> None:
         """Initialize the plugin.
 
-        :param iface: An interface instance that allows interaction with QGIS.
+        Args:
+            iface: An interface instance that allows interaction with QGIS.
         """
-
+        super().__init__()
+        self.project: QgsProject = get_current_project()
         self.iface: QgisInterface = iface
         self.msg_bar: QgsMessageBar | None = iface.messageBar()
         ge.iface = iface
@@ -70,9 +72,7 @@ class UTECLayerTools:  # pylint: disable=too-many-instance-attributes
         self.plugin_menu: QMenu | None = None
         self.icon_path = ":/compiled_resources/icon.png"
         self.translator: QTranslator | None = None
-        self.location_delegate: LayerLocationDelegate | None = None
-        self._indicator_global: bool = False
-        lae.log_debug("Plugin init: created UTECLayerTools instance")
+        self.location_indicators: dict = {}
 
         # Read metadata to get the plugin name for UI elements
         self.plugin_name: str = "UTEC Layer Tools (dev)"
@@ -193,27 +193,31 @@ class UTECLayerTools:  # pylint: disable=too-many-instance-attributes
 
         self.plugin_menu.setIcon(QIcon(self.icon_path))
 
-        # Create the source indicator for the location of the layer source data
-        self.setup_source_indicator()
+        # Create the location indicator for the location of the layer source data
+        self._location_indicators()
+
+        self.project.readProject.connect(self._location_indicators)
+        self.project.layerWasAdded.connect(self._location_indicators)
+        self.project.layerWillBeRemoved.connect(self._location_indicators)
 
         # Add an action for updating layers source location indicators
         # fmt: off
         # ruff: noqa: E501
-        menu_main: str = QCoreApplication.translate("Menu_main", "Reload locaction indicators")
-        menu_tip: str = QCoreApplication.translate("Menu_tip", "Reloads the location indicators for all layers in the project.")
-        menu_whats: str = QCoreApplication.translate("Menu_whats", "The location indicators show the location for the source data for each layer.")
-        # fmt: on
-        refresh_action = self.add_action(
-            self.icon_path,
-            text=menu_main,
-            callback=self.refresh_indicators,
-            parent=self.iface.mainWindow(),
-            add_to_menu=False,  # Will be added to our custom menu
-            add_to_toolbar=False,  # Avoid creating a separate toolbar button
-            status_tip=menu_tip,
-            whats_this=menu_whats,
-        )
-        self.plugin_menu.addAction(refresh_action)
+        # menu_main: str = QCoreApplication.translate("Menu_main", "Reload locaction indicators")
+        # menu_tip: str = QCoreApplication.translate("Menu_tip", "Reloads the location indicators for all layers in the project.")
+        # menu_whats: str = QCoreApplication.translate("Menu_whats", "The location indicators show the location for the source data for each layer.")
+        # # fmt: on
+        # refresh_action = self.add_action(
+        #     self.icon_path,
+        #     text=menu_main,
+        #     callback=self.refresh_indicators,
+        #     parent=self.iface.mainWindow(),
+        #     add_to_menu=False,  # Will be added to our custom menu
+        #     add_to_toolbar=False,  # Avoid creating a separate toolbar button
+        #     status_tip=menu_tip,
+        #     whats_this=menu_whats,
+        # )
+        # self.plugin_menu.addAction(refresh_action)
 
         # Add an action for renaming layers
         # fmt: off
@@ -296,76 +300,40 @@ class UTECLayerTools:  # pylint: disable=too-many-instance-attributes
 
         # Add a toolbutton to the toolbar to show the flyout menu
         toolbar_button = QToolButton()
+        toolbar_button.setIcon(QIcon(self.icon_path))
+        toolbar_button.setToolTip(self.plugin_name)
         toolbar_button.setMenu(self.plugin_menu)
-        toolbar_button.setDefaultAction(rename_action)  # Use an action's icon
+        # By not setting a default action, the button is decoupled from any single menu item.
         toolbar_button.setPopupMode(QToolButton.InstantPopup)
         toolbar_action = self.iface.addToolBarWidget(toolbar_button)
         self.actions.append(toolbar_action)
-
-    def setup_source_indicator(self) -> None:
-        """Initialize and connect the layer source indicator (issue #1 and #7)."""
-        view: ge.QgsLayerTreeView | None = self.iface.layerTreeView()
-        if view is None:
-            lae.log_debug("Indicator setup: no layer tree view", Qgis.Warning)
-            return
-
-        # This is the most backward-compatible method. We replace the default
-        # delegate with our custom one, which first calls the original
-        # delegate's paint method and then paints our icon on top.
-        base_delegate = view.itemDelegate()
-        self.location_delegate = LayerLocationDelegate(view, base_delegate)
-        view.setItemDelegate(self.location_delegate)
-        lae.log_debug("Indicator setup: custom delegate has been set")
-
-        project = QgsProject.instance()
-        root_node = project.layerTreeRoot()
-
-        def _refresh_view_only() -> None:
-            """Force a repaint of the layer tree view."""
-            lae.log_debug("Delegate: refresh requested")
-            if view and view.viewport():
-                view.viewport().update()
-
-        # On changes: clear cache, re-attach (for fallback), and refresh
-        def _rebind_and_refresh_all() -> None:
-            lae.log_debug("Signal: rebind_all")
-            clear_layer_location_cache()
-            # Defer refresh to allow QGIS to process changes first
-            QTimer.singleShot(0, _refresh_view_only)
-
-        def _on_layer_added(layer) -> None:  # type: ignore[no-redef]
-            lae.log_debug(f"Signal: layerWasAdded id={layer.id()} name={layer.name()}")
-            clear_layer_location_cache()
-            QTimer.singleShot(0, _refresh_view_only)
-
-        def _on_layer_removed(_layer_id: str) -> None:
-            lae.log_debug(f"Signal: layerWillBeRemoved id={_layer_id}")
-            clear_layer_location_cache()
-            QTimer.singleShot(0, _refresh_view_only)
-
-        project.readProject.connect(_rebind_and_refresh_all)
-        root_node.customPropertyChanged.connect(_rebind_and_refresh_all)
-        project.layerWasAdded.connect(_on_layer_added)
-        project.layerWillBeRemoved.connect(_on_layer_removed)
 
     def unload(self) -> None:
         """Plugin unload method.
 
         Called when the plugin is unloaded according to the plugin QGIS metadata.
         """
-        # Disconnect indicator signals
-        project = QgsProject.instance()
-        if project:
-            root = project.layerTreeRoot()
+        # Unregister the layer tree view indicator
+        view: QgsLayerTreeView | None = self.iface.layerTreeView()
+        root: QgsLayerTree | None = self.project.layerTreeRoot()
+        if view and root and self.location_indicators:
+            for layer, indicator in self.location_indicators.items():
+                view.removeIndicator(root.findLayer(layer), indicator)
+            lae.log_debug("Unload: Unregistered LayerLocationIndicator.")
+            self.location_indicators = {}
+
+        if self.project:
             try:
-                project.readProject.disconnect()
+                self.project.readProject.disconnect()
             except Exception:
                 pass
             try:
-                root.customPropertyChanged.disconnect()
+                self.project.layerWasAdded.disconnect()
             except Exception:
                 pass
-            except AttributeError:  # root might be None
+            try:
+                self.project.layerWillBeRemoved.disconnect()
+            except Exception:
                 pass
 
         # Remove toolbar icons for all actions
@@ -386,15 +354,16 @@ class UTECLayerTools:  # pylint: disable=too-many-instance-attributes
         # Unload resources to allow for reloading them
         resources.qCleanupResources()
 
-    def refresh_indicators(self) -> None:
-        """Safely refresh indicators if available."""
-        try:
-            lae.log_debug("Action: manual refresh indicators")
-            view = self.iface.layerTreeView()
-            if view and view.viewport():
-                view.viewport().update()
-        except Exception as e:
-            lae.log_debug(f"Manual refresh failed: {e}")
+    def _location_indicators(self) -> None:
+        """Register the layer tree view indicator."""
+        if root := self.project.layerTreeRoot():
+            for layer_node in root.findLayers():
+                if (
+                    layer_node
+                    and (map_layer := layer_node.layer())
+                    and (indicator := add_location_indicator(self.iface, map_layer))
+                ):
+                    self.location_indicators[map_layer] = indicator
 
     def rename_selected_layers(self) -> None:
         """Call rename function from 'functions_rename.py'."""

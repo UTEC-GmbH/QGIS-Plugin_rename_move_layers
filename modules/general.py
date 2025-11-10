@@ -3,8 +3,6 @@
 This module contains the general functions.
 """
 
-import os
-import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -17,29 +15,15 @@ from qgis.core import (
     QgsVectorLayer,
 )
 from qgis.gui import QgisInterface
-from qgis.PyQt.QtCore import (
-    QCoreApplication,  # type: ignore[reportAttributeAccessIssue]
-)
+from qgis.PyQt.QtCore import QCoreApplication
 
-from .constants import EMPTY_LAYER_NAME, LayerLocation
+from .constants import EMPTY_LAYER_NAME
 from .logs_and_errors import log_debug, raise_runtime_error, raise_user_error
 
-# Lightweight cache for layer locations to avoid recomputation in paint (issue #7)
-_LAYER_LOCATION_CACHE: dict[str, LayerLocation] = {}
-
-
-def clear_layer_location_cache() -> None:
-    """Clear the cached layer locations.
-
-    Call this from plugin hooks when project or layers change.
-    """
-    _LAYER_LOCATION_CACHE.clear()
-
-
 if TYPE_CHECKING:
-    from qgis._core import QgsLayerTreeNode
-    from qgis._gui import QgsLayerTreeView
-    from qgis.core import QgsDataProvider
+    from qgis.core import QgsDataProvider, QgsLayerTreeNode
+    from qgis.gui import QgsLayerTreeView
+
 
 iface: QgisInterface | None = None
 
@@ -151,85 +135,3 @@ def project_gpkg() -> Path:
 
     # Do NOT create the file here (issue #3)
     return gpkg_path
-
-
-def _paths_equal(a: Path, b: Path) -> bool:
-    """Robust path equality across platforms and links (issue #4)."""
-    try:
-        # Prefer samefile when possible
-        return a.exists() and b.exists() and a.samefile(b)
-    except Exception:
-        # Fall back to case-insensitive normalized comparison on Windows
-        if sys.platform.startswith("win"):
-            return os.path.normcase(str(a.resolve(strict=False))) == os.path.normcase(
-                str(b.resolve(strict=False))
-            )
-        return str(a.resolve(strict=False)) == str(b.resolve(strict=False))
-
-
-def _is_within(child: Path, parent: Path) -> bool:
-    """Return True if child path is within parent directory (issue #4, py<3.9)."""
-    try:
-        # Python 3.9+
-        return child.resolve(strict=False).is_relative_to(parent.resolve(strict=False))  # type: ignore[attr-defined]
-    except Exception:
-        try:
-            child_res = child.resolve(strict=False)
-            parent_res = parent.resolve(strict=False)
-            common = os.path.commonpath([str(child_res), str(parent_res)])
-            return common == str(parent_res)
-        except Exception:
-            return False
-
-
-def get_layer_location(layer: "QgsMapLayer") -> "LayerLocation":
-    """Determine the location of the layer's data source with caching.
-
-    Args:
-        layer: The QGIS map layer to check.
-
-    Returns:
-        A LayerLocation enum member indicating the layer's data source location.
-    """
-    # Cache lookup (issue #7)
-    try:
-        lid = layer.id()
-        if lid in _LAYER_LOCATION_CACHE:
-            return _LAYER_LOCATION_CACHE[lid]
-    except Exception:
-        # If for any reason layer.id() fails, skip cache.
-        pass
-
-    project: QgsProject = get_current_project()
-    if not project.fileName():
-        return LayerLocation.UNKNOWN
-
-    project_dir: Path = Path(project.fileName()).parent.resolve()
-    gpkg_path: Path = project_gpkg()
-
-    source: str = layer.source()
-    path_part: str = source.split("|")[0]
-
-    if not path_part:
-        location = LayerLocation.NON_FILE
-    else:
-        p = Path(path_part)
-        try:
-            layer_path: Path = p.resolve(strict=False)
-            if _paths_equal(layer_path, gpkg_path):
-                location = LayerLocation.IN_PROJECT_GPKG
-            elif _is_within(layer_path, project_dir):
-                location = LayerLocation.IN_PROJECT_FOLDER
-            else:
-                location = LayerLocation.EXTERNAL
-        except Exception:
-            # Catches errors from invalid paths or if paths are on different drives
-            location = LayerLocation.EXTERNAL
-
-    # Store in cache (issue #7)
-    try:
-        _LAYER_LOCATION_CACHE[layer.id()] = location
-    except Exception:
-        pass
-
-    return location
