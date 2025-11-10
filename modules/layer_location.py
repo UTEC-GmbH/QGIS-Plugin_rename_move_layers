@@ -7,11 +7,11 @@ import os
 import sys
 from pathlib import Path
 
-from qgis.core import QgsMapLayer, QgsProject
+from qgis.core import QgsMapLayer, QgsProject, QgsVectorLayer
 from qgis.gui import QgisInterface, QgsLayerTreeViewIndicator
 
 from .constants import LayerLocation
-from .general import get_current_project, project_gpkg
+from .general import project_gpkg
 from .logs_and_errors import log_debug
 
 
@@ -40,59 +40,76 @@ def _paths_equal(a: Path, b: Path) -> bool:
         return str(a.resolve(strict=False)) == str(b.resolve(strict=False))
 
 
-def get_layer_location(layer: QgsMapLayer) -> LayerLocation:
-    """Determine the location of the layer's data source with caching.
+def get_layer_location(project: QgsProject, layer: QgsMapLayer) -> LayerLocation | None:
+    """Determine the location of the layer's data source.
+
+    This function analyzes the layer's source string to classify its location
+    relative to the QGIS project file. It can identify if a layer is stored
+    in the project's associated GeoPackage, within the project folder, at an
+    external file path, or from a cloud-based service. It also handles special
+    cases like memory layers and empty vector layers.
 
     Args:
+        project: The current QGIS project instance.
         layer: The QGIS map layer to check.
 
     Returns:
-        A LayerLocation enum member indicating the layer's data source location.
+        A LayerLocation enum member indicating the layer's data source location,
+        or None if no indicator should be shown (e.g., for memory layers or if
+        the project is not saved).
     """
-
     log_debug(f"Checking location of layer '{layer.name()}'...")
 
-    project: QgsProject = get_current_project()
     if not project.fileName():
-        log_debug("Prject file name could not be found.")
-        return LayerLocation.UNKNOWN
+        log_debug("Project file name could not be found.")
+        return None
 
-    project_dir: Path = Path(project.fileName()).parent.resolve()
-    gpkg_path: Path = project_gpkg()
+    # Only check feature count for vector layers to avoid performance issues
+    # and incorrect identification of raster layers as empty.
+    if isinstance(layer, QgsVectorLayer) and layer.featureCount() == 0:
+        log_debug(f"Layer '{layer.name()}' is an empty vector layer.")
+        return LayerLocation.EMPTY
 
     source: str = layer.source()
+    if source.startswith("memory"):
+        log_debug(f"Layer '{layer.name()}' is a memory layer. No indicator needed.")
+        return None
+
+    if "url=" in source:
+        log_debug(f"Layer '{layer.name()}': Cloud data source.")
+        return LayerLocation.CLOUD
+
     if path_part := source.split("|")[0]:
-        p = Path(path_part)
-        try:
-            layer_path: Path = p.resolve(strict=False)
-            if _paths_equal(layer_path, gpkg_path):
-                location = LayerLocation.IN_PROJECT_GPKG
-            elif _is_within(layer_path, project_dir):
-                location = LayerLocation.IN_PROJECT_FOLDER
-            else:
-                location = LayerLocation.EXTERNAL
-        except Exception:
-            # Catches errors from invalid paths or if paths are on different drives
+        project_dir: Path = Path(project.fileName()).parent.resolve()
+        gpkg_path: Path = project_gpkg()
+        layer_path: Path = Path(path_part).resolve(strict=False)
+        if _paths_equal(layer_path, gpkg_path):
+            location = LayerLocation.IN_PROJECT_GPKG
+        elif _is_within(layer_path, project_dir):
+            location = LayerLocation.IN_PROJECT_FOLDER
+        else:
             location = LayerLocation.EXTERNAL
 
-    else:
-        location = LayerLocation.NON_FILE
+        log_debug(f"Layer '{layer.name()}': {location.tooltip}")
+        return location
 
-    log_debug(f"Layer '{layer.name()}': {location.tooltip}")
-    return location
+    return None
 
 
 def add_location_indicator(
-    iface: QgisInterface, layer: QgsMapLayer
+    project: QgsProject, iface: QgisInterface, layer: QgsMapLayer
 ) -> QgsLayerTreeViewIndicator | None:
     """Add a location indicator for a single layer to the layer tree view."""
 
-    location: LayerLocation = get_layer_location(layer)
+    location: LayerLocation | None = get_layer_location(project, layer)
+    if location is None:
+        return None
+
     indicator = QgsLayerTreeViewIndicator()
     indicator.setIcon(location.icon)
     indicator.setToolTip(location.tooltip)
     if (
-        (project := QgsProject().instance())
+        project
         and (view := iface.layerTreeView())
         and (root := project.layerTreeRoot())
         and (node := root.findLayer(layer.id()))

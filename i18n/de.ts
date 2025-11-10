@@ -4,50 +4,55 @@
 <context>
     <name>LayerLocation</name>
     <message>
-        <location filename="../modules/layer_location.py" line="34"/>
-        <source>Layer is stored in the project GeoPackage.</source>
-        <translation>Layer im Projekt-GeoPackage gespeichert.</translation>
+        <location filename="../modules/constants.py" line="45"/>
+        <source>Layer is stored in the project GeoPackage. 👍</source>
+        <translation>Layer ist im Projekt-Geopackage gespeichert. 👍</translation>
     </message>
     <message>
-        <location filename="../modules/layer_location.py" line="46"/>
-        <source>Layer is from a web service or database.</source>
-        <translation>Layer wird aus der cloud bezogen.</translation>
+        <location filename="../modules/constants.py" line="49"/>
+        <source>Layer is stored in the project folder. Consider saving to the GeoPackage. ⚠️</source>
+        <translation>Layer ist im Projektordner gespeichert. Erwäge ihn in das Projekt-Geopackage zu verschieben. ⚠️</translation>
     </message>
     <message>
-        <location filename="../modules/layer_location.py" line="50"/>
-        <source>Layer data source unknown.</source>
-        <translation>Datenquelle des Layers ist unbekannt.</translation>
+        <location filename="../modules/constants.py" line="57"/>
+        <source>Layer is from a web service or database. 🔗</source>
+        <translation>Layer wird online bezogen. 🔗</translation>
     </message>
     <message>
-        <location filename="../modules/layer_location.py" line="38"/>
-        <source>Layer is stored in the project folder. Consider saving to the GeoPackage.</source>
-        <translation>Der Layer ist im Projektordner (aber nicht im Projekt-Geopackage) gespeichert... Sollte verschoben werden.</translation>
+        <location filename="../modules/constants.py" line="53"/>
+        <source>Caution: Layer data source is outside the project folder. Please move to the project folder. 💥💥💥</source>
+        <translation>Achtung: Dieser Layer ist nicht im Projektordner gespeichert. Bitte im Projektordner (Projekt-GeoPackage) speichern. 💥💥💥</translation>
     </message>
     <message>
-        <location filename="../modules/layer_location.py" line="42"/>
-        <source>Caution: Layer data source is outside the project folder. Please move to the project folder.</source>
-        <translation>Achtung: die Datenquelle des Layers liegt außerhalb des Projektodners! Bitte in den Projektordner verschieben.</translation>
+        <location filename="../modules/constants.py" line="61"/>
+        <source>Layer data source unknown. ❓</source>
+        <translation>Datenquelle des Layers ist unbekannt. ❓</translation>
+    </message>
+    <message>
+        <location filename="../modules/constants.py" line="65"/>
+        <source>Layer is empty. ❓</source>
+        <translation>Der Layer ist leer. ❓</translation>
     </message>
 </context>
 <context>
     <name>Menu_main</name>
     <message>
-        <location filename="../UTEC_layer_tools.py" line="207"/>
+        <location filename="../UTEC_layer_tools.py" line="201"/>
         <source>Rename Layers by Group</source>
         <translation>Layer gemäß Gruppe umbenennen</translation>
     </message>
     <message>
-        <location filename="../UTEC_layer_tools.py" line="245"/>
+        <location filename="../UTEC_layer_tools.py" line="239"/>
         <source>Move Layers to GeoPackage</source>
         <translation>Layer in GeoPackage verschieben</translation>
     </message>
     <message>
-        <location filename="../UTEC_layer_tools.py" line="226"/>
+        <location filename="../UTEC_layer_tools.py" line="220"/>
         <source>Undo Last Rename</source>
         <translation>Letzte Umbenennung rückgängig machen</translation>
     </message>
     <message>
-        <location filename="../UTEC_layer_tools.py" line="264"/>
+        <location filename="../UTEC_layer_tools.py" line="258"/>
         <source>Rename and Move Layers to GeoPackage</source>
         <translation>Layer umbenennen und in GeoPackage verschieben</translation>
     </message>
@@ -55,22 +60,22 @@
 <context>
     <name>Menu_tip</name>
     <message>
-        <location filename="../UTEC_layer_tools.py" line="208"/>
+        <location filename="../UTEC_layer_tools.py" line="202"/>
         <source>Rename selected layers to their parent group names</source>
         <translation>Gewählte Layer gemäß ihrer Gruppe umbenennen</translation>
     </message>
     <message>
-        <location filename="../UTEC_layer_tools.py" line="246"/>
+        <location filename="../UTEC_layer_tools.py" line="240"/>
         <source>Move selected layers to the project&apos;s GeoPackage</source>
         <translation>Gewählte Layer in das Projekt-GeoPackage verschieben</translation>
     </message>
     <message>
-        <location filename="../UTEC_layer_tools.py" line="227"/>
+        <location filename="../UTEC_layer_tools.py" line="221"/>
         <source>Reverts the last layer renaming operation</source>
         <translation>Macht die letzte Umbenunnung rückgängig</translation>
     </message>
     <message>
-        <location filename="../UTEC_layer_tools.py" line="265"/>
+        <location filename="../UTEC_layer_tools.py" line="259"/>
         <source>Rename and move selected layers to the project&apos;s GeoPackage</source>
         <translation>Ausgewählte Layer umbenennen und in das GeoPackage des Projektes verschieben</translation>
     </message>
@@ -78,22 +83,22 @@
 <context>
     <name>Menu_whats</name>
     <message>
-        <location filename="../UTEC_layer_tools.py" line="209"/>
+        <location filename="../UTEC_layer_tools.py" line="203"/>
         <source>Renames selected layers to match their parent group&apos;s name.</source>
         <translation>Gewählte Layer werden gemäß ihrer Gruppe umbenannt.</translation>
     </message>
     <message>
-        <location filename="../UTEC_layer_tools.py" line="228"/>
+        <location filename="../UTEC_layer_tools.py" line="222"/>
         <source>Undoes the most recent layer renaming operation performed by this plugin.</source>
         <translation>Die letzte Umbenennung wird rückgängig gemacht.</translation>
     </message>
     <message>
-        <location filename="../UTEC_layer_tools.py" line="247"/>
+        <location filename="../UTEC_layer_tools.py" line="241"/>
         <source>Copies selected layers to the project&apos;s GeoPackage (a GeoPackage in the project folder with the same name as the project file) and adds them back from the GeoPackage to the layer tree of the project.</source>
         <translation>Kopiert die Ausgewählten Layer in das GeoPackage des Projekts (ein GeoPackage mit dem selben Namen wie die Projektdatei) und fügt sie aus dem GeoPackage in das Projekt ein.</translation>
     </message>
     <message>
-        <location filename="../UTEC_layer_tools.py" line="266"/>
+        <location filename="../UTEC_layer_tools.py" line="260"/>
         <source>Renames the selected layers to their parent group names, then copies them to the project&apos;s GeoPackage (a GeoPackage in the project folder with the same name as the project file) and adds them back from the GeoPackage to the layer tree of the project.</source>
         <translation>Benennt die gewählten Layer gemäß ihrer Gruppe um, kopiert sie dann in das GeoPackage des Projekts (ein GeoPackage mit dem gleichen Namen wie die Projektdatei) und fügt sie aus dem GeoPackage dem Projekt hinzu.</translation>
     </message>
@@ -101,7 +106,7 @@
 <context>
     <name>RuntimeError</name>
     <message>
-        <location filename="../UTEC_layer_tools.py" line="191"/>
+        <location filename="../UTEC_layer_tools.py" line="192"/>
         <source>Failed to create the plugin menu.</source>
         <translation>Konnte das Plugin-Menu nicht erstellen.</translation>
     </message>

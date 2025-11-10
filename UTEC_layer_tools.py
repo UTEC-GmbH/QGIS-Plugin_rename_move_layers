@@ -22,16 +22,18 @@
 """
 
 import configparser
+import contextlib
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from qgis.core import Qgis, QgsLayerTree, QgsProject
+from qgis.core import Qgis, QgsLayerTree, QgsMapLayer, QgsProject
 from qgis.gui import QgisInterface
 from qgis.PyQt.QtCore import (
     QCoreApplication,
     QObject,
     QSettings,
+    QTimer,
     QTranslator,
 )
 from qgis.PyQt.QtGui import QIcon
@@ -48,7 +50,6 @@ from .modules.general import get_current_project
 from .modules.geopackage import move_layers_to_gpkg
 from .modules.layer_location import add_location_indicator
 from .modules.rename import rename_layers, undo_rename_layers
-import contextlib
 
 if TYPE_CHECKING:
     from qgis.gui import QgsLayerTreeView, QgsMessageBar
@@ -194,13 +195,6 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
 
         self.plugin_menu.setIcon(QIcon(self.icon_path))
 
-        # Create the location indicator for the location of the layer source data
-        self._location_indicators()
-
-        self.project.readProject.connect(self._location_indicators)
-        self.project.layerWasAdded.connect(self._location_indicators)
-        self.project.layerWillBeRemoved.connect(self._location_indicators)
-
         # Add an action for renaming layers
         # fmt: off
         # ruff: noqa: E501
@@ -278,17 +272,21 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
         self.plugin_menu.addAction(rename_move_action)
 
         # Add the fly-out menu to the main "Plugins" menu
-        self.iface.pluginMenu().addMenu(self.plugin_menu)  # type: ignore[]
-
-        # Add a toolbutton to the toolbar to show the flyout menu
+        if menu := self.iface.pluginMenu():
+            menu.addMenu(self.plugin_menu)
         toolbar_button = QToolButton()
         toolbar_button.setIcon(QIcon(self.icon_path))
         toolbar_button.setToolTip(self.plugin_name)
         toolbar_button.setMenu(self.plugin_menu)
-        # By not setting a default action, the button is decoupled from any single menu item.
         toolbar_button.setPopupMode(QToolButton.InstantPopup)
         toolbar_action = self.iface.addToolBarWidget(toolbar_button)
         self.actions.append(toolbar_action)
+
+        # Create the location indicators for the location of the layer source data
+        self._update_all_location_indicators()
+        self.project.readProject.connect(self._update_all_location_indicators)
+        self.project.layerWasAdded.connect(self._on_layer_added)
+        self.project.layerWillBeRemoved.connect(self._on_layer_removed)
 
     def unload(self) -> None:
         """Plugin unload method.
@@ -299,10 +297,7 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
         view: QgsLayerTreeView | None = self.iface.layerTreeView()
         root: QgsLayerTree | None = self.project.layerTreeRoot()
         if view and root and self.location_indicators:
-            for layer, indicator in self.location_indicators.items():
-                view.removeIndicator(root.findLayer(layer), indicator)
-            lae.log_debug("Unload: Unregistered LayerLocationIndicator.")
-            self.location_indicators = {}
+            self._clear_all_location_indicators()
 
         if self.project:
             with contextlib.suppress(Exception):
@@ -330,16 +325,63 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
         # Unload resources to allow for reloading them
         resources.qCleanupResources()
 
-    def _location_indicators(self) -> None:
-        """Register the layer tree view indicator."""
+    def _clear_all_location_indicators(self) -> None:
+        """Remove all location indicators from the layer tree view."""
+        view: QgsLayerTreeView | None = self.iface.layerTreeView()
+        root: QgsLayerTree | None = self.project.layerTreeRoot()
+        if not view or not root or not self.location_indicators:
+            return
+
+        for layer, indicator in self.location_indicators.items():
+            if node := root.findLayer(layer.id()):
+                view.removeIndicator(node, indicator)
+
+        self.location_indicators.clear()
+        lae.log_debug("Cleared all location indicators.")
+
+    def _update_all_location_indicators(self) -> None:
+        """Update location indicators for all layers in the project."""
+        self._clear_all_location_indicators()
         if root := self.project.layerTreeRoot():
             for layer_node in root.findLayers():
-                if (
-                    layer_node
-                    and (map_layer := layer_node.layer())
-                    and (indicator := add_location_indicator(self.iface, map_layer))
-                ):
-                    self.location_indicators[map_layer] = indicator
+                if layer_node and (map_layer := layer_node.layer()):
+                    self._add_indicator_for_layer(map_layer)
+
+    def _add_indicator_for_layer(self, layer: QgsMapLayer) -> None:
+        """Add a location indicator for a single layer."""
+        if layer in self.location_indicators:
+            lae.log_debug(f"Indicator already exists for layer '{layer.name()}'")
+            return
+
+        if indicator := add_location_indicator(self.project, self.iface, layer):
+            lae.log_debug(
+                f"Location indicator added for layer '{layer.name()}': {indicator.icon()}"
+            )
+            self.location_indicators[layer] = indicator
+
+    def _on_layer_added(self, layer: QgsMapLayer) -> None:
+        """Handle the layerWasAdded signal.
+
+        Args:
+            layer: The layer that was added.
+        """
+        # Use a single shot timer to ensure the layer tree node exists
+        # before we try to add the indicator.
+        lae.log_debug(f"Layer added: '{layer.name()}', queueing indicator update.")
+        QTimer.singleShot(0, lambda: self._add_indicator_for_layer(layer))
+
+    def _on_layer_removed(self, layer_id: str) -> None:
+        """Handle the layerWillBeRemoved signal.
+
+        Args:
+            layer_id: The ID of the layer that will be removed.
+        """
+        if layer_to_remove := next(
+            (layer for layer in self.location_indicators if layer.id() == layer_id),
+            None,
+        ):
+            del self.location_indicators[layer_to_remove]
+            lae.log_debug(f"Indicator removed for layer ID: {layer_id}")
 
     def rename_selected_layers(self) -> None:
         """Call rename function from 'functions_rename.py'."""
