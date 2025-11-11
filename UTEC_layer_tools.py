@@ -325,6 +325,8 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
         # Unload resources to allow for reloading them
         resources.qCleanupResources()
 
+    # --- Location Indicators ---
+
     def _clear_all_location_indicators(self) -> None:
         """Remove all location indicators from the layer tree view."""
         view: QgsLayerTreeView | None = self.iface.layerTreeView()
@@ -337,7 +339,7 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
                 view.removeIndicator(node, indicator)
 
         self.location_indicators.clear()
-        lae.log_debug("Cleared all location indicators.")
+        lae.log_debug("Location Indicators → Cleared all location indicators.")
 
     def _update_all_location_indicators(self) -> None:
         """Update location indicators for all layers in the project."""
@@ -345,30 +347,56 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
         if root := self.project.layerTreeRoot():
             for layer_node in root.findLayers():
                 if layer_node and (map_layer := layer_node.layer()):
-                    self._add_indicator_for_layer(map_layer)
+                    self._add_indicator_for_layer(map_layer.id())
 
-    def _add_indicator_for_layer(self, layer: QgsMapLayer) -> None:
-        """Add a location indicator for a single layer."""
+    def _add_indicator_for_layer(self, layer_id: str) -> None:
+        """Add a location indicator for a single layer.
+
+        Args:
+            layer_id: The ID of the layer to add an indicator for.
+        """
+        layer: QgsMapLayer | None = self.project.mapLayer(layer_id)
+        if not layer:
+            lae.log_debug(
+                f"Layer with ID '{layer_id}' not found. Cannot add indicator."
+            )
+            return
+
         if layer in self.location_indicators:
-            lae.log_debug(f"Indicator already exists for layer '{layer.name()}'")
+            lae.log_debug(
+                f"'{layer.name()}' → Location Indicators → Indicator already exists."
+            )
             return
 
         if indicator := add_location_indicator(self.project, self.iface, layer):
-            lae.log_debug(
-                f"Location indicator added for layer '{layer.name()}': {indicator.icon()}"
-            )
             self.location_indicators[layer] = indicator
+            msg: str = f"'{layer.name()}' → Location Indicators → indicator added successfully."
+            lae.log_debug(msg)
 
     def _on_layer_added(self, layer: QgsMapLayer) -> None:
         """Handle the layerWasAdded signal.
 
         Args:
-            layer: The layer that was added.
+            layer: The layer that was added (may be invalid later).
         """
-        # Use a single shot timer to ensure the layer tree node exists
-        # before we try to add the indicator.
-        lae.log_debug(f"Layer added: '{layer.name()}', queueing indicator update.")
-        QTimer.singleShot(0, lambda: self._add_indicator_for_layer(layer))
+        try:
+            # Immediately capture the ID and name. If the layer is already
+            # deleted, this will raise a RuntimeError which we can catch.
+            layer_id: str = layer.id()
+            layer_name: str = layer.name()
+        except RuntimeError:
+            lae.log_debug(
+                "A layer was added and removed before its indicator could be processed."
+            )
+            return
+
+        lae.log_debug(
+            f"'{layer_name}' → Location Indicators → Layer added, queueing indicator update..."
+        )
+
+        # Use a single-shot timer to ensure the layer tree node exists before
+        # adding the indicator. Pass the captured ID, not the layer object.
+        QTimer.singleShot(0, lambda: self._add_indicator_for_layer(layer_id))
 
     def _on_layer_removed(self, layer_id: str) -> None:
         """Handle the layerWillBeRemoved signal.
@@ -381,7 +409,11 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
             None,
         ):
             del self.location_indicators[layer_to_remove]
-            lae.log_debug(f"Indicator removed for layer ID: {layer_id}")
+            lae.log_debug(
+                f"'{layer_to_remove.name()}' → Location Indicators → : indicator removed."
+            )
+
+    # --- Plugin actions ---
 
     def rename_selected_layers(self) -> None:
         """Call rename function from 'functions_rename.py'."""

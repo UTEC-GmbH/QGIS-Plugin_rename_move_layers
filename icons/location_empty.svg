@@ -1,16 +1,50 @@
-<?xml version="1.0" encoding="iso-8859-1"?>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!-- Uploaded to: SVG Repo, www.svgrepo.com, Generator: SVG Repo Mixer Tools -->
-<svg height="800px" width="800px" version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" 
-	 viewBox="0 0 177.218 177.218" xml:space="preserve">
-<g>
-	<g>
-		<polygon style="fill:#010002;" points="88.008,68.431 120.493,95.945 123.685,93.247 91.196,65.736 122.866,38.913 
-			123.685,38.219 120.493,35.524 88.008,63.038 55.522,35.524 52.334,38.219 84.829,65.736 53.153,92.56 52.334,93.247 
-			55.522,95.945 		"/>
-		<path style="fill:#010002;" d="M164.77,5.819l-0.086-0.812H12.526L0.1,119.609L0,120.614h0.319v51.596h176.566v-51.596h0.333
-			L164.77,5.819z M17.722,10.797h141.765l11.281,104.026h-48.014v2.895c0,18.828-15.317,34.149-34.149,34.149
-			c-18.835,0-34.153-15.321-34.153-34.149v-2.895H6.442L17.722,10.797z M171.094,166.427H6.109v-45.813h42.656
-			c1.492,20.804,18.9,37.041,39.84,37.041c20.936,0,38.34-16.234,39.825-37.041h42.66v45.813H171.094z"/>
+
+<svg
+   height="800px"
+   width="800px"
+   version="1.1"
+   id="Capa_1"
+   viewBox="0 0 177.218 177.218"
+   xml:space="preserve"
+   sodipodi:docname="location_empty.svg"
+   inkscape:version="1.4.2 (f4327f4, 2025-05-13)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"><defs
+   id="defs2" /><sodipodi:namedview
+   id="namedview2"
+   pagecolor="#ffffff"
+   bordercolor="#000000"
+   borderopacity="0.25"
+   inkscape:showpageshadow="2"
+   inkscape:pageopacity="0.0"
+   inkscape:pagecheckerboard="0"
+   inkscape:deskcolor="#d1d1d1"
+   inkscape:zoom="1.41625"
+   inkscape:cx="400"
+   inkscape:cy="400"
+   inkscape:window-width="2560"
+   inkscape:window-height="1351"
+   inkscape:window-x="-9"
+   inkscape:window-y="-4"
+   inkscape:window-maximized="1"
+   inkscape:current-layer="Capa_1" />
+<g
+   id="g2"
+   transform="matrix(0.84095504,0,0,0.84095504,14.092815,14.093235)">
+	<g
+   id="g1">
+		<polygon
+   style="fill:#010002"
+   points="122.866,38.913 123.685,38.219 120.493,35.524 88.008,63.038 55.522,35.524 52.334,38.219 84.829,65.736 53.153,92.56 52.334,93.247 55.522,95.945 88.008,68.431 120.493,95.945 123.685,93.247 91.196,65.736 "
+   id="polygon1" />
+		<path
+   style="fill:#010002"
+   d="M 164.77,5.819 164.684,5.007 H 12.526 L 0.1,119.609 0,120.614 h 0.319 v 51.596 h 176.566 v -51.596 h 0.333 z M 17.722,10.797 h 141.765 l 11.281,104.026 h -48.014 v 2.895 c 0,18.828 -15.317,34.149 -34.149,34.149 -18.835,0 -34.153,-15.321 -34.153,-34.149 v -2.895 H 6.442 Z m 153.372,155.63 H 6.109 v -45.813 h 42.656 c 1.492,20.804 18.9,37.041 39.84,37.041 20.936,0 38.34,-16.234 39.825,-37.041 h 42.66 v 45.813 z"
+   id="path1" />
 	</g>
 </g>
 </svg>

@@ -58,7 +58,7 @@ def get_layer_location(project: QgsProject, layer: QgsMapLayer) -> LayerLocation
         or None if no indicator should be shown (e.g., for memory layers or if
         the project is not saved).
     """
-    log_debug(f"Checking location of layer '{layer.name()}'...")
+    log_debug(f"'{layer.name()}' → Location Indicators → Checking location...")
 
     if not project.fileName():
         log_debug("Project file name could not be found.")
@@ -67,16 +67,19 @@ def get_layer_location(project: QgsProject, layer: QgsMapLayer) -> LayerLocation
     # Only check feature count for vector layers to avoid performance issues
     # and incorrect identification of raster layers as empty.
     if isinstance(layer, QgsVectorLayer) and layer.featureCount() == 0:
-        log_debug(f"Layer '{layer.name()}' is an empty vector layer.")
+        log_debug(f"'{layer.name()}' → Location Indicators → Layer is empty.")
         return LayerLocation.EMPTY
 
     source: str = layer.source()
     if source.startswith("memory"):
-        log_debug(f"Layer '{layer.name()}' is a memory layer. No indicator needed.")
+        log_debug(
+            f"'{layer.name()}' → Location Indicators → "
+            "memory layer - no indicator needed."
+        )
         return None
 
     if "url=" in source:
-        log_debug(f"Layer '{layer.name()}': Cloud data source.")
+        log_debug(f"'{layer.name()}' → Location Indicators → cloud data source.")
         return LayerLocation.CLOUD
 
     if path_part := source.split("|")[0]:
@@ -90,7 +93,7 @@ def get_layer_location(project: QgsProject, layer: QgsMapLayer) -> LayerLocation
         else:
             location = LayerLocation.EXTERNAL
 
-        log_debug(f"Layer '{layer.name()}': {location.tooltip}")
+        log_debug(f"'{layer.name()}' → Location Indicators → {location.tooltip}")
         return location
 
     return None
@@ -115,7 +118,7 @@ def add_location_indicator(
         and (node := root.findLayer(layer.id()))
     ):
         view.addIndicator(node, indicator)
-        log_debug(f"Layer '{layer.name()}': {indicator.toolTip()}")
+        log_debug(f"'{layer.name()}' → Location Indicators → adding indicator...")
         return indicator
 
     return None
