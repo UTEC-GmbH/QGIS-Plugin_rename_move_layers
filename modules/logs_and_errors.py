@@ -22,7 +22,7 @@ LEVEL_ICON: dict[Qgis.MessageLevel, str] = {
     Qgis.Critical: "☠️",
 }
 
-LOG_TAG: str = "Plugin: Rename_Move_Layers"
+LOG_TAG: str = "Plugin: UTEC Layer Tools"
 
 
 def file_line(frame: FrameType | None) -> str:
@@ -175,7 +175,7 @@ def log_summary_message(
     full_message: str = " ".join(message_parts)
 
     log_debug(full_message, debug_level)
-    show_message(full_message, debug_level)
+    show_message(full_message, debug_level, duration=15)
 
 
 class CustomRuntimeError(Exception):

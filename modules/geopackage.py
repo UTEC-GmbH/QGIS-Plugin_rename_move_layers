@@ -7,7 +7,6 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from osgeo import ogr
 from qgis.core import (
     Qgis,
     QgsLayerTree,
@@ -17,64 +16,24 @@ from qgis.core import (
     QgsVectorLayer,
     QgsWkbTypes,
 )
-from qgis.PyQt.QtCore import (
-    QCoreApplication,  # type: ignore[reportAttributeAccessIssue]
-)
+from qgis.PyQt.QtCore import QCoreApplication
 
+from .constants import EMPTY_LAYER_NAME, GEOMETRY_SUFFIX_MAP
 from .general import (
-    EMPTY_LAYER_NAME,
-    GEOMETRY_SUFFIX_MAP,
     clear_attribute_table,
     get_current_project,
     get_selected_layers,
+    project_gpkg,
 )
 from .logs_and_errors import (
     log_debug,
     log_summary_message,
     raise_runtime_error,
-    raise_user_error,
 )
 from .rename import geometry_type_suffix
 
 if TYPE_CHECKING:
     from qgis.core import QgsMapLayerStyle, QgsMapLayerStyleManager
-
-
-def project_gpkg() -> Path:
-    """Check if a GeoPackage with the same name as the project
-    exists in the project folder and creates it if not.
-
-    Example: for a project 'my_project.qgz',
-    it looks for 'my_project.gpkg' in the same directory.
-
-    :returns: The Path object to the GeoPackage.
-    :raises UserError: If the project is not saved.
-    :raises IOError: If the GeoPackage file cannot be created.
-    """
-    project: QgsProject = get_current_project()
-    project_path_str: str = project.fileName()
-    if not project_path_str:
-        # fmt: off
-        msg: str = QCoreApplication.translate("UserError", "Project is not saved. Please save the project first.")  # noqa: E501
-        # fmt: on
-        raise_user_error(msg)
-
-    project_path: Path = Path(project_path_str)
-    gpkg_path: Path = project_path.with_suffix(".gpkg")
-
-    if not gpkg_path.exists():
-        driver = ogr.GetDriverByName("GPKG")
-        data_source = driver.CreateDataSource(str(gpkg_path))
-        if data_source is None:
-            # fmt: off
-            msg: str = QCoreApplication.translate("RuntimeError", "Failed to create GeoPackage at: {0}").format(gpkg_path)  # noqa: E501
-            # fmt: on
-            raise_runtime_error(msg)
-
-        # Dereference the data source to close the file and release the lock.
-        data_source = None
-
-    return gpkg_path
 
 
 def check_existing_layer(gpkg_path: Path, layer: QgsMapLayer) -> str:

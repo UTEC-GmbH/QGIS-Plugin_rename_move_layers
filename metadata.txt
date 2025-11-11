@@ -1,15 +1,14 @@
 [general]
-name=UTEC umbenennen und speichern (dev)
+name=UTEC Layer Tools (dev)
 
-version=0.3
+version=0.4
 changelog=
-    Version 0.3:
-    - Beim Verschieben wird der Stil des Layers vom Ursprungslayer übernommen
-    - Umbenennen kann rückgängig gemacht werden.
+    Version 0.4:
+    - Symbole, die die Datenquelle der Layer anzeigen
 
-description=Gewählte Layer werde umbenannt (falls sie in einer Gruppe sind) und in das Projekt-GeoPackage verschoben. (hilfreich nach CAD-Import)
+description=Verschiedene Werkzeuge zur Darstellung, Benennung und zum Speichern von Layern. 
 qgisMinimumVersion=3.0
 author=Florian Ludwig
 email=immerse-vowel-dole@duck.com
-icon=icon.png
+icon=icon.svg
 download_url_base=file:////dc1/netz$/Software/QGIS_Plugins_UTEC

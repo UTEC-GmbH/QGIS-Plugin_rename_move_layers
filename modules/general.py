@@ -3,10 +3,10 @@
 This module contains the general functions.
 """
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from qgis.core import (
-    Qgis,
     QgsLayerTreeGroup,
     QgsLayerTreeLayer,
     QgsMapLayer,
@@ -15,23 +15,16 @@ from qgis.core import (
     QgsVectorLayer,
 )
 from qgis.gui import QgisInterface
-from qgis.PyQt.QtCore import (
-    QCoreApplication,  # type: ignore[reportAttributeAccessIssue]
-)
+from qgis.PyQt.QtCore import QCoreApplication
 
+from .constants import EMPTY_LAYER_NAME
 from .logs_and_errors import log_debug, raise_runtime_error, raise_user_error
 
 if TYPE_CHECKING:
-    from qgis._core import QgsLayerTreeNode
-    from qgis._gui import QgsLayerTreeView
-    from qgis.core import QgsDataProvider
+    from qgis.core import QgsDataProvider, QgsLayerTreeNode
+    from qgis.gui import QgsLayerTreeView
 
-EMPTY_LAYER_NAME: str = "empty layer"
-GEOMETRY_SUFFIX_MAP: dict[Qgis.GeometryType, str] = {
-    Qgis.GeometryType.Line: "l",
-    Qgis.GeometryType.Point: "pt",
-    Qgis.GeometryType.Polygon: "pg",
-}
+
 iface: QgisInterface | None = None
 
 
@@ -119,3 +112,26 @@ def clear_attribute_table(layer: QgsMapLayer) -> None:
     if field_indices := list(range(layer.fields().count())):
         provider.deleteAttributes(field_indices)
         layer.updateFields()
+
+
+def project_gpkg() -> Path:
+    """Return the expected GeoPackage path for the current project without I/O side effects.
+
+    Example: for a project 'my_project.qgz', returns 'my_project.gpkg' in the same directory.
+
+    :returns: The Path object to the GeoPackage.
+    :raises UserError: If the project is not saved.
+    """
+    project: QgsProject = get_current_project()
+    project_path_str: str = project.fileName()
+    if not project_path_str:
+        # fmt: off
+        msg: str = QCoreApplication.translate("UserError", "Project is not saved. Please save the project first.")
+        # fmt: on
+        raise_user_error(msg)
+
+    project_path: Path = Path(project_path_str)
+    gpkg_path: Path = project_path.with_suffix(".gpkg")
+
+    # Do NOT create the file here (issue #3)
+    return gpkg_path
