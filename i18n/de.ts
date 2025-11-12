@@ -4,34 +4,34 @@
 <context>
     <name>LayerLocation</name>
     <message>
-        <location filename="../modules/constants.py" line="45"/>
-        <source>Layer is stored in the project GeoPackage. 👍</source>
-        <translation>Layer ist im Projekt-Geopackage gespeichert. 👍</translation>
-    </message>
-    <message>
-        <location filename="../modules/constants.py" line="49"/>
-        <source>Layer is stored in the project folder. Consider saving to the GeoPackage. ⚠️</source>
-        <translation>Layer ist im Projektordner gespeichert. Erwäge ihn in das Projekt-Geopackage zu verschieben. ⚠️</translation>
-    </message>
-    <message>
-        <location filename="../modules/constants.py" line="57"/>
-        <source>Layer is from a web service or database. 🔗</source>
-        <translation>Layer wird online bezogen. 🔗</translation>
-    </message>
-    <message>
-        <location filename="../modules/constants.py" line="53"/>
-        <source>Caution: Layer data source is outside the project folder. Please move to the project folder. 💥💥💥</source>
-        <translation>Achtung: Dieser Layer ist nicht im Projektordner gespeichert. Bitte im Projektordner (Projekt-GeoPackage) speichern. 💥💥💥</translation>
-    </message>
-    <message>
         <location filename="../modules/constants.py" line="61"/>
-        <source>Layer data source unknown. ❓</source>
-        <translation>Datenquelle des Layers ist unbekannt. ❓</translation>
+        <source>❓&lt;b&gt;Data Source Unknown&lt;/b&gt;❓&lt;br&gt;The data source of this Layer could not be determined.</source>
+        <translation>❓&lt;b&gt;Datenquelle Unbekannt&lt;/b&gt;❓&lt;br&gt;Die Quelle der Daten dieses Layers konnten nicht ermittelt werden.</translation>
     </message>
     <message>
         <location filename="../modules/constants.py" line="65"/>
-        <source>Layer is empty. ❓</source>
-        <translation>Der Layer ist leer. ❓</translation>
+        <source>❓&lt;b&gt;Empty Layer&lt;/b&gt;❓&lt;br&gt;This Layer does not contain any objects.</source>
+        <translation>❓&lt;b&gt;Layer leer&lt;/b&gt;❓&lt;br&gt;Dieser Layer enthält keine Objekte.</translation>
+    </message>
+    <message>
+        <location filename="../modules/constants.py" line="45"/>
+        <source>👍&lt;b&gt;Geopackage Layer&lt;/b&gt;👍&lt;br&gt;This layer is stored in the project GeoPackage (a GeoPackage with the same name as the project file).</source>
+        <translation>👍&lt;b&gt;Geopackage Layer&lt;/b&gt;👍&lt;br&gt;Dieser Layer ist im Projekt-GeoPackage (ein GeoPackage mit dem selben Namen wie die Projektdatei) abgespeichert.</translation>
+    </message>
+    <message>
+        <location filename="../modules/constants.py" line="49"/>
+        <source>⚠️&lt;b&gt;Layer in Project Folder&lt;/b&gt;⚠️&lt;br&gt;This layer is stored in the project folder, but not in the Project GeoPackage. Consider saving to the GeoPackage (a GeoPackage with the same name as the project file).</source>
+        <translation>⚠️&lt;b&gt;Layer im Projektordner&lt;/b&gt;⚠️&lt;br&gt;Dieser Layer ist im Projektordner, aber nicht im Projekt-GeoPackage abgespeichert. Falls möglich und sinnvoll, sollte er in das Projekt-GeoPackage (ein GeoPackage mit dem selben Namen wie die Projektdatei) verschoben werden.</translation>
+    </message>
+    <message>
+        <location filename="../modules/constants.py" line="53"/>
+        <source>💥💥💥&lt;b&gt;Caution&lt;/b&gt;💥💥💥&lt;br&gt;This layer is stored outside the project folder. Please move to the project folder.</source>
+        <translation>💥💥💥&lt;b&gt;Vorsicht&lt;/b&gt;💥💥💥&lt;br&gt;Dieser Layer ist nicht im Projektordner abgespeichert. Bitte in den Projektordner verschieben.</translation>
+    </message>
+    <message>
+        <location filename="../modules/constants.py" line="57"/>
+        <source>🔗&lt;b&gt;Cloud Layer&lt;/b&gt;🔗&lt;br&gt;This layer is from a cloud-based service or database.</source>
+        <translation>🔗&lt;b&gt;Cloud Layer&lt;/b&gt;🔗&lt;br&gt;Dieser Ordner wird online oder von einer Datenbank bezogen.</translation>
     </message>
 </context>
 <context>

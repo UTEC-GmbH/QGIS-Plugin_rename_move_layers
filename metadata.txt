@@ -1,8 +1,10 @@
 [general]
 name=UTEC Layer Tools (dev)
 
-version=0.4
+version=0.4.1
 changelog=
+    Version 0.4.1:
+    - Tool Tips der Symbole überarbeitet
     Version 0.4:
     - Symbole, die die Datenquelle der Layer anzeigen
 

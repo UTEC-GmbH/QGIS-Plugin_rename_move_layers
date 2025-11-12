@@ -44,26 +44,26 @@ class LayerLocation(LayerLocationInfo, Enum):
 
     IN_PROJECT_GPKG = (
         QIcon(":/compiled_resources_LayerTools/icons/location_gpkg.svg"),
-        lambda: QCoreApplication.translate("LayerLocation", "Layer is stored in the project GeoPackage. 👍"),
+        lambda: QCoreApplication.translate("LayerLocation", "👍<b>Geopackage Layer</b>👍<br>This layer is stored in the project GeoPackage (a GeoPackage with the same name as the project file)."),
     )
     IN_PROJECT_FOLDER = (
         QIcon(":/compiled_resources_LayerTools/icons/location_folder.svg"),
-        lambda: QCoreApplication.translate("LayerLocation", "Layer is stored in the project folder. Consider saving to the GeoPackage. ⚠️"),
+        lambda: QCoreApplication.translate("LayerLocation", "⚠️<b>Layer in Project Folder</b>⚠️<br>This layer is stored in the project folder, but not in the Project GeoPackage. Consider saving to the GeoPackage (a GeoPackage with the same name as the project file)."),
     )
     EXTERNAL = (
         QIcon(":/compiled_resources_LayerTools/icons/location_external.svg"),
-        lambda: QCoreApplication.translate("LayerLocation", "Caution: Layer data source is outside the project folder. Please move to the project folder. 💥💥💥"),
+        lambda: QCoreApplication.translate("LayerLocation", "💥💥💥<b>Caution</b>💥💥💥<br>This layer is stored outside the project folder. Please move to the project folder."),
     )
     CLOUD = (
         QIcon(":/compiled_resources_LayerTools/icons/location_cloud.svg"),
-        lambda: QCoreApplication.translate("LayerLocation", "Layer is from a web service or database. 🔗"),
+        lambda: QCoreApplication.translate("LayerLocation", "🔗<b>Cloud Layer</b>🔗<br>This layer is from a cloud-based service or database."),
     )
     UNKNOWN = (
         QIcon(":/compiled_resources_LayerTools/icons/location_unknown.svg"),
-        lambda: QCoreApplication.translate("LayerLocation", "Layer data source unknown. ❓"),
+        lambda: QCoreApplication.translate("LayerLocation", "❓<b>Data Source Unknown</b>❓<br>The data source of this Layer could not be determined."),
     )
     EMPTY = (
         QIcon(":/compiled_resources_LayerTools/icons/location_empty.svg"),
-        lambda: QCoreApplication.translate("LayerLocation", "Layer is empty. ❓"),
+        lambda: QCoreApplication.translate("LayerLocation", "❓<b>Empty Layer</b>❓<br>This Layer does not contain any objects."),
     )
 # fmt: on
