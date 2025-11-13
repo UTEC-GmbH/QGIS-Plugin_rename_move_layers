@@ -1,12 +1,25 @@
 [general]
 name=UTEC Layer Tools (dev)
 
-version=0.4.1
+version=0.5
 changelog=
+    Version 0.5:
+    - Neue Kategorien für Layer: 
+        - GeoPackage, aber nicht Projekt-GeoPackege
+        - Kein GeoPackage (aber im Projektordner)
+
     Version 0.4.1:
     - Tool Tips der Symbole überarbeitet
+
     Version 0.4:
     - Symbole, die die Datenquelle der Layer anzeigen
+
+    Version 0.3:
+    - Beim Verschieben wird der Stil des Layers vom Ursprungslayer übernommen
+    - Umbenennen kann rückgängig gemacht werden.
+
+    Version 0.2:
+    - erster Release
 
 description=Verschiedene Werkzeuge zur Darstellung, Benennung und zum Speichern von Layern. 
 qgisMinimumVersion=3.0
