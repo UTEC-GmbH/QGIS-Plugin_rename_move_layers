@@ -64,12 +64,13 @@ def get_layer_location(project: QgsProject, layer: QgsMapLayer) -> LayerLocation
         log_debug("Project file name could not be found.")
         return None
 
-    # Only check feature count for vector layers to avoid performance issues
-    # and incorrect identification of raster layers as empty.
+    # Check if the layer is empty
     if isinstance(layer, QgsVectorLayer) and layer.featureCount() == 0:
         log_debug(f"'{layer.name()}' → Location Indicators → Layer is empty.")
         return LayerLocation.EMPTY
 
+    # Check if the layer is a memory layer
+    # (temporary layers get an indicator from QGIS itself)
     source: str = layer.source()
     if source.startswith("memory"):
         log_debug(
@@ -78,18 +79,28 @@ def get_layer_location(project: QgsProject, layer: QgsMapLayer) -> LayerLocation
         )
         return None
 
+    # Check if the layer is a cloud source
     if "url=" in source:
         log_debug(f"'{layer.name()}' → Location Indicators → cloud data source.")
         return LayerLocation.CLOUD
 
+    # Check if the layer is stored in the project folder
     if path_part := source.split("|")[0]:
         project_dir: Path = Path(project.fileName()).parent.resolve()
         gpkg_path: Path = project_gpkg()
         layer_path: Path = Path(path_part).resolve(strict=False)
+
+        # Check if the layer is stored in the project GeoPackage
         if _paths_equal(layer_path, gpkg_path):
-            location = LayerLocation.IN_PROJECT_GPKG
+            location = LayerLocation.GPKG_PROJECT
+
+        # Check if the layer is stored within the project folder
         elif _is_within(layer_path, project_dir):
-            location = LayerLocation.IN_PROJECT_FOLDER
+            location = (
+                LayerLocation.GPKG_FOLDER
+                if ".gpkg" in layer_path.name
+                else LayerLocation.FOLDER_NO_GPKG
+            )
         else:
             location = LayerLocation.EXTERNAL
 

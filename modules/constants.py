@@ -42,28 +42,32 @@ class LayerLocationInfo:
 class LayerLocation(LayerLocationInfo, Enum):
     """Enumeration for layer locations with associated display info."""
 
-    IN_PROJECT_GPKG = (
-        QIcon(":/compiled_resources_LayerTools/icons/location_gpkg.svg"),
-        lambda: QCoreApplication.translate("LayerLocation", "👍<b>Geopackage Layer</b>👍<br>This layer is stored in the project GeoPackage (a GeoPackage with the same name as the project file)."),
+    CLOUD = (
+        QIcon(":/compiled_resources_LayerTools/icons/location_cloud.svg"),
+        lambda: QCoreApplication.translate("LayerLocation", "🔗<b>Cloud Layer</b>🔗<br>This layer is from a cloud-based service or database."),
     )
-    IN_PROJECT_FOLDER = (
-        QIcon(":/compiled_resources_LayerTools/icons/location_folder.svg"),
-        lambda: QCoreApplication.translate("LayerLocation", "⚠️<b>Layer in Project Folder</b>⚠️<br>This layer is stored in the project folder, but not in the Project GeoPackage. Consider saving to the GeoPackage (a GeoPackage with the same name as the project file)."),
+    EMPTY = (
+        QIcon(":/compiled_resources_LayerTools/icons/location_empty.svg"),
+        lambda: QCoreApplication.translate("LayerLocation", "❓<b>Empty Layer</b>❓<br>This Layer does not contain any objects."),
     )
     EXTERNAL = (
         QIcon(":/compiled_resources_LayerTools/icons/location_external.svg"),
         lambda: QCoreApplication.translate("LayerLocation", "💥💥💥<b>Caution</b>💥💥💥<br>This layer is stored outside the project folder. Please move to the project folder."),
     )
-    CLOUD = (
-        QIcon(":/compiled_resources_LayerTools/icons/location_cloud.svg"),
-        lambda: QCoreApplication.translate("LayerLocation", "🔗<b>Cloud Layer</b>🔗<br>This layer is from a cloud-based service or database."),
+    FOLDER_NO_GPKG = (
+        QIcon(":/compiled_resources_LayerTools/icons/location_folder_no_gpkg.svg"),
+        lambda: QCoreApplication.translate("LayerLocation", "⚠️<b>Layer in Project Folder but not GeoPackage</b>⚠️<br>This layer is stored in the project folder, but not in a GeoPackage. Consider saving to the Project-GeoPackage (a GeoPackage with the same name as the project file)."),
+    )
+    GPKG_FOLDER = (
+        QIcon(":/compiled_resources_LayerTools/icons/location_gpkg_folder.svg"),
+        lambda: QCoreApplication.translate("LayerLocation", "⚠️<b>Layer in GeoPackge in Project Folder</b>⚠️<br>This layer is stored in a GeoPackage in the project folder, but not in the Project-GeoPackage. Consider saving to the Project-GeoPackage (a GeoPackage with the same name as the project file)."),
+    )
+    GPKG_PROJECT = (
+        QIcon(":/compiled_resources_LayerTools/icons/location_gpkg_project.svg"),
+        lambda: QCoreApplication.translate("LayerLocation", "👍<b>Layer in Project-Geopackage</b>👍<br>This layer is stored in the Project-GeoPackage (a GeoPackage with the same name as the project file)."),
     )
     UNKNOWN = (
         QIcon(":/compiled_resources_LayerTools/icons/location_unknown.svg"),
         lambda: QCoreApplication.translate("LayerLocation", "❓<b>Data Source Unknown</b>❓<br>The data source of this Layer could not be determined."),
-    )
-    EMPTY = (
-        QIcon(":/compiled_resources_LayerTools/icons/location_empty.svg"),
-        lambda: QCoreApplication.translate("LayerLocation", "❓<b>Empty Layer</b>❓<br>This Layer does not contain any objects."),
     )
 # fmt: on

@@ -6,10 +6,11 @@
         <file>icons/main_undo.svg</file>
         <file>icons/main_rename_move.svg</file>
         <file>icons/location_cloud.svg</file>
-        <file>icons/location_external.svg</file>
-        <file>icons/location_folder.svg</file>
-        <file>icons/location_gpkg.svg</file>
-        <file>icons/location_unknown.svg</file>
         <file>icons/location_empty.svg</file>
+        <file>icons/location_external.svg</file>
+        <file>icons/location_folder_no_gpkg.svg</file>
+        <file>icons/location_gpkg_folder.svg</file>
+        <file>icons/location_gpkg_project.svg</file>
+        <file>icons/location_unknown.svg</file>
     </qresource>
 </RCC>
