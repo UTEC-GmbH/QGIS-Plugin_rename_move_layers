@@ -19,7 +19,7 @@ LEVEL_ICON: dict[Qgis.MessageLevel, str] = {
     Qgis.Success: "🎉",
     Qgis.Info: "💡",
     Qgis.Warning: "💥",
-    Qgis.Critical: "☠️",
+    Qgis.Critical: "💀",
 }
 
 LOG_TAG: str = "Plugin: UTEC Layer Tools"
@@ -110,7 +110,6 @@ def log_summary_message(
     successes: int = 0,
     skipped: list | None = None,
     failures: list | None = None,
-    not_found: list | None = None,
     action: str = "Operation",
 ) -> None:
     """Generate a summary message for the user based on operation results.
@@ -129,7 +128,18 @@ def log_summary_message(
     :param action: A string describing the action performed (e.g., "Renamed", "Moved").
     :returns: A tuple containing the summary message (str) and the message level (int).
     """
-    message_parts: list[str] = []
+
+    layers_processed: int = (
+        successes
+        + (len(skipped) if skipped else 0)
+        + (len(failures) if failures else 0)
+    )
+
+    # fmt: off
+    message_parts: list[str] = [
+        QCoreApplication.translate("log_summary", "{amount} Layers processed.").format(amount=layers_processed) # noqa: E501
+    ]
+    # fmt: on
     debug_level: Qgis.MessageLevel = Qgis.Success
 
     if successes:
@@ -142,7 +152,7 @@ def log_summary_message(
         # fmt: off
         msg_part: str = QCoreApplication.translate("log_summary", "Skipped {num_skipped} layer(s).").format(num_skipped=len(skipped))  # noqa: E501
         # fmt: on
-        debug_level = Qgis.Warning
+        debug_level = Qgis.Info
         message_parts.append(msg_part)
         for skipped_layer in skipped:
             log_debug(f"Skipped layer '{skipped_layer}'", debug_level)
@@ -156,15 +166,6 @@ def log_summary_message(
         for failure in failures:
             log_debug(f"Failed to {action} {failure[0]}: {failure[2]}", debug_level)
 
-    if not_found:
-        # fmt: off
-        msg_part: str = QCoreApplication.translate("log_summary", "Could not find {len_not_found} layer(s).").format(len_not_found=len(not_found))  # noqa: E501
-        # fmt: on
-        debug_level = Qgis.Critical
-        message_parts.append(msg_part)
-        for skipped_layer in not_found:  # assuming you have a list of not found layers
-            log_debug(f"Could not find '{skipped_layer}'", debug_level)
-
     if not message_parts:  # If no operations were reported
         # fmt: off
         msg_part: str = QCoreApplication.translate("log_summary", "No layers processed or all selected layers already have the desired state.")  # noqa: E501
@@ -175,7 +176,7 @@ def log_summary_message(
     full_message: str = " ".join(message_parts)
 
     log_debug(full_message, debug_level)
-    show_message(full_message, debug_level, duration=15)
+    show_message(full_message, debug_level, duration=10)
 
 
 class CustomRuntimeError(Exception):
