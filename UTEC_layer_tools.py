@@ -107,67 +107,42 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
     def add_action(  # noqa: PLR0913 # pylint: disable=too-many-arguments,too-many-positional-arguments
         self,
         icon_path: str,
-        text: str,
+        button_text: str,
         callback: Callable,
         enabled_flag: bool = True,  # noqa: FBT001, FBT002
         add_to_menu: bool = True,  # noqa: FBT001, FBT002
         add_to_toolbar: bool = True,  # noqa: FBT001, FBT002
-        status_tip: str | None = None,
-        whats_this: str | None = None,
+        tool_tip: str | None = None,
         parent=None,  # noqa: ANN001
-    ) -> QAction:  # type: ignore[]
-        """Add a toolbar icon to the toolbar.
+    ) -> QAction:  # pyright: ignore[reportInvalidTypeForm]
+        """Create and configure a QAction for the plugin.
 
-        :param icon_path: Path to the icon for this action. Can be a resource
-            path (e.g. ':/plugins/foo/bar.png') or a normal file path
-            (e.g. '/path/to/icon.png').
-        :type icon_path: str
+        This helper method creates a QAction, connects it to a callback, and
+        optionally adds it to the QGIS toolbar and the plugin's menu.
 
-        :param text: Text that should be shown in menu items for this action.
-        :type text: str
+        Args:
+            icon_path: Path to the icon for this action. Can be a resource
+                path (e.g., ':/plugins/foo/bar.png') or a file path.
+            button_text: Text to be displayed for the action in menus.
+            callback: The function to execute when the action is triggered.
+            enabled_flag: Whether the action should be enabled by default.
+            add_to_menu: If True, adds the action to the plugin's menu.
+            add_to_toolbar: If True, adds the action to a QGIS toolbar.
+            tool_tip: Optional tooltip text for the action.
+            parent: The parent widget for the action, typically the QGIS main
+                window.
 
-        :param callback: Function to be called when the action is triggered.
-        :type callback: function
-
-        :param enabled_flag: A flag indicating if the action should be enabled
-            by default. Defaults to True.
-        :type enabled_flag: bool
-
-        :param add_to_menu: Flag indicating whether the action should (and should
-            not) be added to the menu. Defaults to True.
-        :type add_to_menu: bool
-
-        :param add_to_toolbar: Flag indicating whether the action should (and
-            should not) be added to the toolbar. Defaults to True.
-        :type add_to_toolbar: bool
-
-        :param status_tip: Text that should be shown in a status bar when
-            the mouse pointer hovers over the action. For menus and toolbars,
-            this is often longer explanation text.
-        :type status_tip: str
-
-        :param parent: Parent widget for the new action. Defaults None.
-        :type parent: QWidget
-
-        :param whats_this: Text document that goes into the 'whatsThis' help
-            section.
-        :type whats_this: str
-
-        :returns: The action that was created. As a widget, this can be added
-            to menus and toolbars.
-        :rtype: QAction
+        Returns:
+            The configured QAction instance.
         """
 
         icon = QIcon(icon_path)
-        action = QAction(icon, text, parent)
+        action = QAction(icon, button_text, parent)
         action.triggered.connect(callback)
         action.setEnabled(enabled_flag)
 
-        if status_tip is not None:
-            action.setStatusTip(status_tip)
-
-        if whats_this is not None:
-            action.setWhatsThis(whats_this)
+        if tool_tip is not None:
+            action.setToolTip(tool_tip)
 
         if add_to_toolbar:
             self.iface.addToolBarIcon(action)
@@ -193,81 +168,74 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
             # fmt: on
             lae.raise_runtime_error(error_msg)
 
+        self.plugin_menu.setToolTipsVisible(True)
         self.plugin_menu.setIcon(QIcon(self.icon_path))
 
         # Add an action for renaming layers
         # fmt: off
-        # ruff: noqa: E501
-        menu_main: str = QCoreApplication.translate("Menu_main", "Rename Layers by Group")
-        menu_tip: str = QCoreApplication.translate("Menu_tip", "Rename selected layers to their parent group names")
-        menu_whats: str = QCoreApplication.translate("Menu_whats", "Renames selected layers to match their parent group's name.")
+        # ruff: noqa: E501     
+        button: str = QCoreApplication.translate("Menu_Button", "Rename Selected Layers by Group Name")
+        tool_tip_text: str = QCoreApplication.translate("Menu_ToolTip", "<p><b>Rename Selected Layers by Group Name</b></p><p><span style='font-weight:normal; font-style:normal;'>Selected layers or layers in selected groups are renamed according to their parent group names. If a layer is not in a group, it is not renamed.</span></p>")
         # fmt: on
         rename_action = self.add_action(
             icon_path=":/compiled_resources_LayerTools/icons/main_rename.svg",
-            text=menu_main,
+            button_text=button,
             callback=self.rename_selected_layers,
             parent=self.iface.mainWindow(),
             add_to_menu=False,  # Will be added to our custom menu
             add_to_toolbar=False,  # Avoid creating a separate toolbar button
-            status_tip=menu_tip,
-            whats_this=menu_whats,
+            tool_tip=tool_tip_text,
         )
         self.plugin_menu.addAction(rename_action)
 
         # Add an action for undoing the last rename
         # fmt: off
         # ruff: noqa: E501
-        menu_main: str = QCoreApplication.translate("Menu_main", "Undo Last Rename")
-        menu_tip: str = QCoreApplication.translate("Menu_tip", "Reverts the last layer renaming operation")
-        menu_whats: str = QCoreApplication.translate("Menu_whats", "Undoes the most recent layer renaming operation performed by this plugin.")
+        button: str = QCoreApplication.translate("Menu_Button", "Undo Last Rename")
+        tool_tip_text: str = QCoreApplication.translate("Menu_ToolTip", "<p><b>Undo Last Rename</b></p><p><span style='font-weight:normal; font-style:normal;'>Undoes the most recent layer renaming operation performed by this plugin.</span></p>")
         # fmt: on
         undo_rename_action = self.add_action(
             icon_path=":/compiled_resources_LayerTools/icons/main_undo.svg",
-            text=menu_main,
+            button_text=button,
             callback=self.undo_last_rename,
             parent=self.iface.mainWindow(),
             add_to_menu=False,  # Added to custom menu
             add_to_toolbar=False,
-            status_tip=menu_tip,
-            whats_this=menu_whats,
+            tool_tip=tool_tip_text,
         )
         self.plugin_menu.addAction(undo_rename_action)
 
         # Add an action for moving layers
         # fmt: off
         # ruff: noqa: E501
-        menu_main: str = QCoreApplication.translate("Menu_main", "Move Layers to GeoPackage")
-        menu_tip: str = QCoreApplication.translate("Menu_tip", "Move selected layers to the project's GeoPackage")
-        menu_whats: str = QCoreApplication.translate("Menu_whats", "Copies selected layers to the project's GeoPackage (a GeoPackage in the project folder with the same name as the project file) and adds them back from the GeoPackage to the layer tree of the project.")
+        button: str = QCoreApplication.translate("Menu_Button", "Copy Selected Layers to Project's GeoPackage")
+        tool_tip_text: str = QCoreApplication.translate("Menu_ToolTip", "<p><b>Copy Selected Layers to Project's GeoPackage</b></p><p><span style='font-weight:normal; font-style:normal;'>Selected layers or layers in selected groups are copied to the project's GeoPackage (a GeoPackage in the project folder with the same name as the project file) and added back from the GeoPackage to the top of the layer tree of the current project.</span></p>")
         # fmt: on
         move_action = self.add_action(
             icon_path=":/compiled_resources_LayerTools/icons/main_move.svg",
-            text=menu_main,
+            button_text=button,
             callback=self.move_selected_layers,
             parent=self.iface.mainWindow(),
             add_to_menu=False,  # Added to custom menu
             add_to_toolbar=False,
-            status_tip=menu_tip,
-            whats_this=menu_whats,
+            tool_tip=tool_tip_text,
         )
         self.plugin_menu.addAction(move_action)
 
         # Add an action for renaming and moving layers
         # fmt: off
         # ruff: noqa: E501
-        menu_main: str = QCoreApplication.translate("Menu_main", "Rename and Move Layers to GeoPackage")
-        menu_tip: str = QCoreApplication.translate("Menu_tip", "Rename and move selected layers to the project's GeoPackage")
-        menu_whats: str = QCoreApplication.translate("Menu_whats", "Renames the selected layers to their parent group names, then copies them to the project's GeoPackage (a GeoPackage in the project folder with the same name as the project file) and adds them back from the GeoPackage to the layer tree of the project.")
+        button: str = QCoreApplication.translate("Menu_Button", "Rename and Copy Selected Layers to Project's GeoPackage")
+        tool_tip_text: str = QCoreApplication.translate("Menu_ToolTip", "<p><b>Rename and Copy Selected Layers to Project's GeoPackage</b></p><p><span style='font-weight:normal; font-style:normal;'>Selected layers or layers in selected groups are renamed according to their parent group names, then copied to the project's GeoPackage (a GeoPackage in the project folder with the same name as the project file) and then added back from the GeoPackage to the top of the layer tree of the current project.</span></p>")
         # fmt: on
         rename_move_action = self.add_action(
             icon_path=":/compiled_resources_LayerTools/icons/main_rename_move.svg",
-            text=menu_main,
+            button_text=button,
             callback=self.rename_and_move_layers,
             parent=self.iface.mainWindow(),
             add_to_menu=False,  # Added to custom menu
             add_to_toolbar=False,
-            status_tip=menu_tip,
-            whats_this=menu_whats,
+            tool_tip=tool_tip_text,
         )
         self.plugin_menu.addAction(rename_move_action)
 

@@ -3,6 +3,10 @@ name=UTEC Layer Tools (dev)
 
 version=0.5
 changelog=
+    Version 0.6:
+    - Beschriftung der Funktionen verbessert
+    - bugfix: Layer, die nicht in einer Gruppe sind, werden nicht mehr umbenannt.
+    
     Version 0.5:
     - Neue Kategorien für Layer: 
         - GeoPackage, aber nicht Projekt-GeoPackege

@@ -55,7 +55,7 @@ def fix_layer_name(name: str) -> str:
     return sanitized_name
 
 
-def prepare_rename_plan() -> tuple[list, list, list, list]:
+def prepare_rename_plan() -> tuple[list[tuple[QgsMapLayer, str, str]], list[str]]:
     """Prepare a plan to rename selected layers based on their parent group.
 
     Empty vector layers are planned to be renamed to 'empty layer'. For other
@@ -64,45 +64,58 @@ def prepare_rename_plan() -> tuple[list, list, list, list]:
     If multiple layers would be renamed to the same name (e.g., they are in
     the same group, or multiple layers are empty), a geometry type suffix is
     appended to differentiate them.
-    """
-    layers_to_process: list[QgsMapLayer] = get_selected_layers()
-    # Using defaultdict to group layers by their prospective new name
-    potential_renames = defaultdict(list)
-    skipped_layers: list[str] = []
-    error_layers: list[str] = []
 
+    Returns:
+        A tuple containing the rename plan, a list of skipped layer names, and a
+        list of layer names that could not be found in the layer tree.
+    """
     project: QgsProject = get_current_project()
     root: QgsLayerTree | None = project.layerTreeRoot()
     if root is None:
         raise_runtime_error("No Layer Tree is available.")
 
+    layers_to_process: list[QgsMapLayer] = get_selected_layers()
+
+    # Using defaultdict to group layers by their prospective new name
+    potential_renames: defaultdict[str, list[QgsMapLayer]] = defaultdict(list)
+    skipped_layers: list[str] = []
+
+    log_debug(f"Renaming {len(layers_to_process)} layers...")
     for layer in layers_to_process:
-        # If a vector layer is empty, plan to rename it to "empty layer".
-        if isinstance(layer, QgsVectorLayer) and layer.featureCount() == 0:
-            potential_renames[EMPTY_LAYER_NAME].append(layer)
-            continue
-
         node: QgsLayerTreeLayer | None = root.findLayer(layer.id())
+
+        # If the layer is not in the layer tree, skip it.
         if not node:
-            error_layers.append(layer.name())
+            skipped_layers.append(layer.name())
+            log_debug(f"'{layer.name()}' → Rename → Skipped because not in layer tree.")
             continue
 
-        parent: QgsLayerTreeNode | None = node.parent()
-        if isinstance(parent, QgsLayerTreeGroup):
-            raw_group_name: str = parent.name()
-            new_name_base: str = fix_layer_name(raw_group_name)
-            potential_renames[new_name_base].append(layer)
-        else:
+        # If a vector layer is empty, skip it.
+        if isinstance(layer, QgsVectorLayer) and layer.featureCount() == 0:
             skipped_layers.append(layer.name())
+            log_debug(f"'{layer.name()}' → Rename → Skipped because empty.")
+            continue
+
+        # If the layer is not in a group, skip it.
+        parent: QgsLayerTreeNode | None = node.parent()
+        raw_group_name: str = parent.name() if parent else ""
+        if not isinstance(parent, QgsLayerTreeGroup) or not raw_group_name:
+            skipped_layers.append(layer.name())
+            log_debug(f"'{layer.name()}' → Rename → Skipped because not in a group.")
+            continue
+
+        new_name_base: str = fix_layer_name(raw_group_name)
+        if not new_name_base:
+            skipped_layers.append(layer.name())
+            log_debug(f"'{layer.name()}' → Rename → Skipped because invalid name.")
+            continue
+
+        potential_renames[new_name_base].append(layer)
 
     # Build the final rename plan, handling name collisions
-    rename_plan = build_rename_plan(potential_renames)
+    rename_plan: list = build_rename_plan(potential_renames)
 
-    # The failed_renames list is populated by execute_rename_plan,
-    # so initialize it as empty.
-    failed_renames: list = []
-
-    return rename_plan, skipped_layers, failed_renames, error_layers
+    return rename_plan, skipped_layers
 
 
 def build_rename_plan(
@@ -135,7 +148,7 @@ def build_rename_plan(
                 if layer.name() != final_new_name:
                     rename_plan.append((layer, layer.name(), final_new_name))
         else:  # No collision
-            layer = layers[0]
+            layer: QgsMapLayer = layers[0]
             if layer.name() != new_name_base:
                 rename_plan.append((layer, layer.name(), new_name_base))
     return rename_plan
@@ -143,7 +156,7 @@ def build_rename_plan(
 
 def execute_rename_plan(
     rename_plan: list[tuple[QgsMapLayer, str, str]],
-) -> tuple[list, list]:
+) -> tuple[list[tuple[str, str, str]], list[tuple[str, str, str]]]:
     """Execute the renaming of layers and record the changes for undo.
 
     This function iterates through the rename_plan, renaming each layer
@@ -155,7 +168,7 @@ def execute_rename_plan(
               - A list of failed rename operations in the format
                 (old_name, new_name, error_message).
               - A list of successful rename operations for the undo stack
-                in the format (layer_id, old_name, new_name).
+                in the format [layer_id, old_name, new_name].
     """
     failed_renames: list = []
     successful_renames: list[tuple[str, str, str]] = []
@@ -168,6 +181,12 @@ def execute_rename_plan(
         except RuntimeError as e:  # noqa: PERF203
             # If setName fails, the layer name is unchanged.
             failed_renames.append((old_name, new_layer_name, str(e)))
+
+    if failed_renames:
+        log_debug(
+            f"Failed to rename {len(failed_renames)} layers: {failed_renames}",
+            Qgis.Warning,
+        )
 
     return failed_renames, successful_renames
 
@@ -190,9 +209,7 @@ def geometry_type_suffix(layer: QgsMapLayer) -> str:
 def rename_layers() -> None:
     """Orchestrates the renaming of selected layers to their parent group names."""
 
-    plan: tuple = prepare_rename_plan()
-
-    rename_plan, skipped_layers, _, error_layers = plan
+    rename_plan, skipped_layers = prepare_rename_plan()
 
     failed_renames, successful_renames = execute_rename_plan(rename_plan)
 
@@ -210,7 +227,6 @@ def rename_layers() -> None:
         successes=successful_count,
         skipped=skipped_layers,
         failures=failed_renames,
-        not_found=error_layers,
         action="Renamed",
     )
 
