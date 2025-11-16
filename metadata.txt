@@ -1,7 +1,7 @@
 [general]
 name=UTEC Layer Tools (dev)
 
-version=0.5
+version=0.6
 changelog=
     Version 0.6:
     - Beschriftung der Funktionen verbessert
