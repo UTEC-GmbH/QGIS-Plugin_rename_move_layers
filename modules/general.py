@@ -1,4 +1,4 @@
-"""Module: functions_general.py
+"""Module: general.py
 
 This module contains the general functions.
 """
@@ -133,5 +133,4 @@ def project_gpkg() -> Path:
     project_path: Path = Path(project_path_str)
     gpkg_path: Path = project_path.with_suffix(".gpkg")
 
-    # Do NOT create the file here (issue #3)
     return gpkg_path

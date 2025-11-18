@@ -164,7 +164,7 @@ def log_summary_message(
         debug_level = Qgis.Warning
         message_parts.append(msg_part)
         for failure in failures:
-            log_debug(f"Failed to {action} {failure[0]}: {failure[2]}", debug_level)
+            log_debug(f"Failed to {action} {failure[0]}: {failure[1]}", debug_level)
 
     if not message_parts:  # If no operations were reported
         # fmt: off

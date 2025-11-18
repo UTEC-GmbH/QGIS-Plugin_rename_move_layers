@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from osgeo import ogr
 from qgis.core import (
     Qgis,
     QgsLayerTree,
@@ -34,6 +35,25 @@ from .rename import geometry_type_suffix
 
 if TYPE_CHECKING:
     from qgis.core import QgsMapLayerStyle, QgsMapLayerStyleManager
+
+
+def check_gpkg(gpkg_path: Path) -> None:
+    """Check if the GeoPackage exists and create an empty one if not.
+
+    :param gpkg_path: The path to the GeoPackage.
+    """
+    if gpkg_path.exists():
+        log_debug(f"Project GeoPackage found in '{gpkg_path}'")
+        return
+
+    log_debug("Project GeoPackage does not exist yet. Creating empty GeoPackage...")
+
+    driver = ogr.GetDriverByName("GPKG")
+    ds = driver.CreateDataSource(str(gpkg_path))
+    if ds is None:
+        raise_runtime_error(f"Could not create GeoPackage at '{gpkg_path}'")
+    # close datasource to flush file
+    ds = None
 
 
 def check_existing_layer(gpkg_path: Path, layer: QgsMapLayer) -> str:
@@ -89,7 +109,7 @@ def add_layers_to_gpkg() -> None:
     project: QgsProject = get_current_project()
     layers: list[QgsMapLayer] = get_selected_layers()
     gpkg_path: Path = project_gpkg()
-
+    check_gpkg(gpkg_path)
     results: dict = {"successes": 0, "failures": []}
 
     for layer in layers:

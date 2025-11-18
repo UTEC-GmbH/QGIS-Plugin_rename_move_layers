@@ -113,7 +113,7 @@
         <translation>Keine Layer oder Layer-Gruppen ausgewählt.</translation>
     </message>
     <message>
-        <location filename="../modules/geopackage.py" line="180"/>
+        <location filename="../modules/geopackage.py" line="200"/>
         <source>Could not get layer tree root.</source>
         <translation>Konnte &quot;layer tree root&quot; nicht finden.</translation>
     </message>
