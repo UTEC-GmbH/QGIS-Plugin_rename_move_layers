@@ -1,8 +1,11 @@
 [general]
 name=UTEC Layer Tools (dev)
 
-version=0.6
+version=0.7
 changelog=
+    Version 0.7:
+    - Kompatibilität mit Qt6 (QGIS 4.0)
+
     Version 0.6:
     - Beschriftung der Funktionen verbessert
     - bugfix: Layer, die nicht in einer Gruppe sind, werden nicht mehr umbenannt.
