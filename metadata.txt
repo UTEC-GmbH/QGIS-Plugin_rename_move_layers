@@ -33,5 +33,5 @@ description=Verschiedene Werkzeuge zur Darstellung, Benennung und zum Speichern 
 qgisMinimumVersion=3.0
 author=Florian Ludwig
 email=immerse-vowel-dole@duck.com
-icon=icon.svg
+icon=resources/icons/plugin_main_icon.svg
 download_url_base=file:////dc1/netz$/Software/QGIS_Plugins_UTEC

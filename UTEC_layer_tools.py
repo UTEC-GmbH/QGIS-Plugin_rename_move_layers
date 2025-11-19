@@ -49,7 +49,7 @@ from .modules.general import get_current_project
 from .modules.geopackage import move_layers_to_gpkg
 from .modules.layer_location import add_location_indicator
 from .modules.rename import rename_layers, undo_rename_layers
-from .modules.resource_utils import get_resource_path
+from .modules.resource_utils import resources
 
 if TYPE_CHECKING:
     from qgis.gui import QgsLayerTreeView, QgsMessageBar
@@ -72,7 +72,7 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
         self.plugin_dir: Path = Path(__file__).parent
         self.actions: list = []
         self.plugin_menu: QMenu | None = None
-        self.icon_path = get_resource_path("icon.svg")
+        self.plugin_icon = resources.icons.plugin_main_icon
         self.translator: QTranslator | None = None
         self.location_indicators: dict = {}
 
@@ -106,7 +106,7 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
 
     def add_action(  # noqa: PLR0913 # pylint: disable=too-many-arguments,too-many-positional-arguments
         self,
-        icon_path: str,
+        icon: str | QIcon,
         button_text: str,
         callback: Callable,
         enabled_flag: bool = True,  # noqa: FBT001, FBT002
@@ -121,8 +121,7 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
         optionally adds it to the QGIS toolbar and the plugin's menu.
 
         Args:
-            icon_path: Path to the icon for this action. Can be a resource
-                path (e.g., ':/plugins/foo/bar.png') or a file path.
+            icon: Path to the icon or QIcon object.
             button_text: Text to be displayed for the action in menus.
             callback: The function to execute when the action is triggered.
             enabled_flag: Whether the action should be enabled by default.
@@ -136,7 +135,8 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
             The configured QAction instance.
         """
 
-        icon = QIcon(icon_path)
+        if isinstance(icon, str):
+            icon = QIcon(icon)
         action = QAction(icon, button_text, parent)
         action.triggered.connect(callback)
         action.setEnabled(enabled_flag)
@@ -169,7 +169,7 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
             lae.raise_runtime_error(error_msg)
 
         self.plugin_menu.setToolTipsVisible(True)
-        self.plugin_menu.setIcon(QIcon(self.icon_path))
+        self.plugin_menu.setIcon(self.plugin_icon)
 
         # Add an action for renaming layers
         # fmt: off
@@ -178,7 +178,7 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
         tool_tip_text: str = QCoreApplication.translate("Menu_ToolTip", "<p><b>Rename Selected Layers by Group Name</b></p><p><span style='font-weight:normal; font-style:normal;'>Selected layers or layers in selected groups are renamed according to their parent group names. If a layer is not in a group, it is not renamed.</span></p>")
         # fmt: on
         rename_action = self.add_action(
-            icon_path=get_resource_path("icons/main_rename.svg"),
+            icon=resources.icons.main_rename,
             button_text=button,
             callback=self.rename_selected_layers,
             parent=self.iface.mainWindow(),
@@ -195,7 +195,7 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
         tool_tip_text: str = QCoreApplication.translate("Menu_ToolTip", "<p><b>Undo Last Rename</b></p><p><span style='font-weight:normal; font-style:normal;'>Undoes the most recent layer renaming operation performed by this plugin.</span></p>")
         # fmt: on
         undo_rename_action = self.add_action(
-            icon_path=get_resource_path("icons/main_undo.svg"),
+            icon=resources.icons.main_undo,
             button_text=button,
             callback=self.undo_last_rename,
             parent=self.iface.mainWindow(),
@@ -212,7 +212,7 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
         tool_tip_text: str = QCoreApplication.translate("Menu_ToolTip", "<p><b>Copy Selected Layers to Project's GeoPackage</b></p><p><span style='font-weight:normal; font-style:normal;'>Selected layers or layers in selected groups are copied to the project's GeoPackage (a GeoPackage in the project folder with the same name as the project file) and added back from the GeoPackage to the top of the layer tree of the current project.</span></p>")
         # fmt: on
         move_action = self.add_action(
-            icon_path=get_resource_path("icons/main_move.svg"),
+            icon=resources.icons.main_move,
             button_text=button,
             callback=self.move_selected_layers,
             parent=self.iface.mainWindow(),
@@ -229,7 +229,7 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
         tool_tip_text: str = QCoreApplication.translate("Menu_ToolTip", "<p><b>Rename and Copy Selected Layers to Project's GeoPackage</b></p><p><span style='font-weight:normal; font-style:normal;'>Selected layers or layers in selected groups are renamed according to their parent group names, then copied to the project's GeoPackage (a GeoPackage in the project folder with the same name as the project file) and then added back from the GeoPackage to the top of the layer tree of the current project.</span></p>")
         # fmt: on
         rename_move_action = self.add_action(
-            icon_path=get_resource_path("icons/main_rename_move.svg"),
+            icon=resources.icons.main_rename_move,
             button_text=button,
             callback=self.rename_and_move_layers,
             parent=self.iface.mainWindow(),
@@ -243,7 +243,7 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
         if menu := self.iface.pluginMenu():
             menu.addMenu(self.plugin_menu)
         toolbar_button = QToolButton()
-        toolbar_button.setIcon(QIcon(self.icon_path))
+        toolbar_button.setIcon(self.plugin_icon)
         toolbar_button.setToolTip(self.plugin_name)
         toolbar_button.setMenu(self.plugin_menu)
         toolbar_button.setPopupMode(QToolButton.InstantPopup)
