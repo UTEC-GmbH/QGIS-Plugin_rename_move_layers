@@ -43,13 +43,13 @@ from qgis.PyQt.QtWidgets import (
     QToolButton,
 )
 
-from . import resources
 from .modules import general as ge
 from .modules import logs_and_errors as lae
 from .modules.general import get_current_project
 from .modules.geopackage import move_layers_to_gpkg
 from .modules.layer_location import add_location_indicator
 from .modules.rename import rename_layers, undo_rename_layers
+from .modules.resource_utils import get_resource_path
 
 if TYPE_CHECKING:
     from qgis.gui import QgsLayerTreeView, QgsMessageBar
@@ -72,7 +72,7 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
         self.plugin_dir: Path = Path(__file__).parent
         self.actions: list = []
         self.plugin_menu: QMenu | None = None
-        self.icon_path = ":/compiled_resources_LayerTools/icon.svg"
+        self.icon_path = get_resource_path("icon.svg")
         self.translator: QTranslator | None = None
         self.location_indicators: dict = {}
 
@@ -158,7 +158,7 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
         """Create the menu entries and toolbar icons for the plugin."""
 
         # Initialize the resources (icons, etc.)
-        resources.qInitResources()
+        # resources.qInitResources()
 
         # Create a menu for the plugin in the "Plugins" menu
         self.plugin_menu = QMenu(self.menu, self.iface.pluginMenu())
@@ -178,7 +178,7 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
         tool_tip_text: str = QCoreApplication.translate("Menu_ToolTip", "<p><b>Rename Selected Layers by Group Name</b></p><p><span style='font-weight:normal; font-style:normal;'>Selected layers or layers in selected groups are renamed according to their parent group names. If a layer is not in a group, it is not renamed.</span></p>")
         # fmt: on
         rename_action = self.add_action(
-            icon_path=":/compiled_resources_LayerTools/icons/main_rename.svg",
+            icon_path=get_resource_path("icons/main_rename.svg"),
             button_text=button,
             callback=self.rename_selected_layers,
             parent=self.iface.mainWindow(),
@@ -195,7 +195,7 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
         tool_tip_text: str = QCoreApplication.translate("Menu_ToolTip", "<p><b>Undo Last Rename</b></p><p><span style='font-weight:normal; font-style:normal;'>Undoes the most recent layer renaming operation performed by this plugin.</span></p>")
         # fmt: on
         undo_rename_action = self.add_action(
-            icon_path=":/compiled_resources_LayerTools/icons/main_undo.svg",
+            icon_path=get_resource_path("icons/main_undo.svg"),
             button_text=button,
             callback=self.undo_last_rename,
             parent=self.iface.mainWindow(),
@@ -212,7 +212,7 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
         tool_tip_text: str = QCoreApplication.translate("Menu_ToolTip", "<p><b>Copy Selected Layers to Project's GeoPackage</b></p><p><span style='font-weight:normal; font-style:normal;'>Selected layers or layers in selected groups are copied to the project's GeoPackage (a GeoPackage in the project folder with the same name as the project file) and added back from the GeoPackage to the top of the layer tree of the current project.</span></p>")
         # fmt: on
         move_action = self.add_action(
-            icon_path=":/compiled_resources_LayerTools/icons/main_move.svg",
+            icon_path=get_resource_path("icons/main_move.svg"),
             button_text=button,
             callback=self.move_selected_layers,
             parent=self.iface.mainWindow(),
@@ -229,7 +229,7 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
         tool_tip_text: str = QCoreApplication.translate("Menu_ToolTip", "<p><b>Rename and Copy Selected Layers to Project's GeoPackage</b></p><p><span style='font-weight:normal; font-style:normal;'>Selected layers or layers in selected groups are renamed according to their parent group names, then copied to the project's GeoPackage (a GeoPackage in the project folder with the same name as the project file) and then added back from the GeoPackage to the top of the layer tree of the current project.</span></p>")
         # fmt: on
         rename_move_action = self.add_action(
-            icon_path=":/compiled_resources_LayerTools/icons/main_rename_move.svg",
+            icon_path=get_resource_path("icons/main_rename_move.svg"),
             button_text=button,
             callback=self.rename_and_move_layers,
             parent=self.iface.mainWindow(),
@@ -291,7 +291,7 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
         self.plugin_menu = None
 
         # Unload resources to allow for reloading them
-        resources.qCleanupResources()
+        # resources.qCleanupResources()
 
     # --- Location Indicators ---
 
