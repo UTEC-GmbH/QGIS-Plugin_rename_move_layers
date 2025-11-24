@@ -48,8 +48,10 @@ from .modules import logs_and_errors as lae
 from .modules.general import get_current_project
 from .modules.geopackage import move_layers_to_gpkg
 from .modules.layer_location import add_location_indicator
+from .modules.main_interface import set_iface
 from .modules.rename import rename_layers, undo_rename_layers
 from .modules.resource_utils import resources
+from .modules.shipping import prepare_layers_for_shipping
 
 if TYPE_CHECKING:
     from qgis.gui import QgsLayerTreeView, QgsMessageBar
@@ -69,6 +71,7 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
         self.iface: QgisInterface = iface
         self.msg_bar: QgsMessageBar | None = iface.messageBar()
         ge.iface = iface
+        set_iface(iface)
         self.plugin_dir: Path = Path(__file__).parent
         self.actions: list = []
         self.plugin_menu: QMenu | None = None
@@ -239,6 +242,23 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
         )
         self.plugin_menu.addAction(rename_move_action)
 
+        # Add an action for preparing layers for shipping
+        # fmt: off
+        # ruff: noqa: E501
+        button: str = QCoreApplication.translate("Menu_Button", "Prepare Selected Layers for Sending")
+        tool_tip_text: str = QCoreApplication.translate("Menu_ToolTip", "<p><b>Prepare Selected Layers for Sending</b></p><p><span style='font-weight:normal; font-style:normal;'>Creates a 'Versand' folder with a GeoPackage containing the selected layers and a project file with the same styling.</span></p>")
+        # fmt: on
+        shipping_action = self.add_action(
+            icon=resources.icons.main_send,
+            button_text=button,
+            callback=self.prepare_shipping,
+            parent=self.iface.mainWindow(),
+            add_to_menu=False,  # Added to custom menu
+            add_to_toolbar=False,
+            tool_tip=tool_tip_text,
+        )
+        self.plugin_menu.addAction(shipping_action)
+
         # Add the fly-out menu to the main "Plugins" menu
         if menu := self.iface.pluginMenu():
             menu.addMenu(self.plugin_menu)
@@ -331,14 +351,12 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
             return
 
         if layer in self.location_indicators:
-            lae.log_debug(
-                f"'{layer.name()}' → Location Indicators → Indicator already exists."
-            )
+            # Indicator already exists
             return
 
         if indicator := add_location_indicator(self.project, self.iface, layer):
             self.location_indicators[layer] = indicator
-            msg: str = f"'{layer.name()}' → Location Indicators → indicator added successfully."
+            msg: str = f"Location Indicators → '{layer.name()}' → indicator added successfully."
             lae.log_debug(msg)
 
     def _on_layer_added(self, layer: QgsMapLayer) -> None:
@@ -419,5 +437,13 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
         try:
             rename_layers()
             move_layers_to_gpkg()
+        except (lae.CustomUserError, lae.CustomRuntimeError):
+            return
+
+    def prepare_shipping(self) -> None:
+        """Call shipping function from 'modules/shipping.py'."""
+        lae.log_debug("... STARTING PLUGIN RUN ... (prepare_shipping)", icon="✨✨✨")
+        try:
+            prepare_layers_for_shipping()
         except (lae.CustomUserError, lae.CustomRuntimeError):
             return

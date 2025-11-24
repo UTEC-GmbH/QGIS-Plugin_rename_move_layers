@@ -20,7 +20,7 @@ from qgis.core import (
     QgsWkbTypes,
 )
 
-from .constants import EMPTY_LAYER_NAME, GEOMETRY_SUFFIX_MAP
+from .constants import GEOMETRY_SUFFIX_MAP
 from .general import (
     get_current_project,
     get_selected_layers,
@@ -137,12 +137,13 @@ def build_rename_plan(
     """
     rename_plan: list[tuple[QgsMapLayer, str, str]] = []
     for new_name_base, layers in potential_renames.items():
-        if len(layers) > 1:  # Name collision detected
+        if len(layers) > 1:
+            log_debug(
+                f"Name collision detected for '{new_name_base}'. Adding suffixes..."
+            )
             for layer in layers:
                 suffix: str = (
-                    ""
-                    if new_name_base == EMPTY_LAYER_NAME
-                    else geometry_type_suffix(layer)
+                    "" if layer.featureCount() == 0 else geometry_type_suffix(layer)
                 )
                 final_new_name: str = f"{new_name_base}{suffix}"
                 if layer.name() != final_new_name:

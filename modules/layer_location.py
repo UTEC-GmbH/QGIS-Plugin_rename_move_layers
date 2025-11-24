@@ -18,9 +18,9 @@ from .logs_and_errors import log_debug
 def _is_within(child: Path, parent: Path) -> bool:
     """Return True if child path is within parent directory (issue #4, py<3.9)."""
     try:
-        child_res = child.resolve(strict=False)
-        parent_res = parent.resolve(strict=False)
-        common = os.path.commonpath([str(child_res), str(parent_res)])
+        child_res: Path = child.resolve(strict=False)
+        parent_res: Path = parent.resolve(strict=False)
+        common: str = os.path.commonpath([str(child_res), str(parent_res)])
         return common == str(parent_res)
     except Exception:
         return False
@@ -58,7 +58,7 @@ def get_layer_location(project: QgsProject, layer: QgsMapLayer) -> LayerLocation
         or None if no indicator should be shown (e.g., for memory layers or if
         the project is not saved).
     """
-    log_debug(f"'{layer.name()}' → Location Indicators → Checking location...")
+    log_debug(f"Location Indicators → '{layer.name()}' → Checking location...")
 
     if not project.fileName():
         log_debug("Project file name could not be found.")
@@ -66,7 +66,7 @@ def get_layer_location(project: QgsProject, layer: QgsMapLayer) -> LayerLocation
 
     # Check if the layer is empty
     if isinstance(layer, QgsVectorLayer) and layer.featureCount() == 0:
-        log_debug(f"'{layer.name()}' → Location Indicators → Layer is empty.")
+        log_debug(f"Location Indicators → '{layer.name()}' → Layer is empty.")
         return LayerLocation.EMPTY
 
     # Check if the layer is a memory layer
@@ -74,14 +74,14 @@ def get_layer_location(project: QgsProject, layer: QgsMapLayer) -> LayerLocation
     source: str = layer.source()
     if source.startswith("memory"):
         log_debug(
-            f"'{layer.name()}' → Location Indicators → "
+            f"Location Indicators → '{layer.name()}' → "
             "memory layer - no indicator needed."
         )
         return None
 
     # Check if the layer is a cloud source
     if "url=" in source:
-        log_debug(f"'{layer.name()}' → Location Indicators → cloud data source.")
+        log_debug(f"Location Indicators → '{layer.name()}' → cloud data source.")
         return LayerLocation.CLOUD
 
     # Check if the layer is stored in the project folder
@@ -104,7 +104,7 @@ def get_layer_location(project: QgsProject, layer: QgsMapLayer) -> LayerLocation
         else:
             location = LayerLocation.EXTERNAL
 
-        log_debug(f"'{layer.name()}' → Location Indicators → {location.tooltip}")
+        log_debug(f"Location Indicators → '{layer.name()}' → location: {location.name}")
         return location
 
     return None
@@ -129,7 +129,7 @@ def add_location_indicator(
         and (node := root.findLayer(layer.id()))
     ):
         view.addIndicator(node, indicator)
-        log_debug(f"'{layer.name()}' → Location Indicators → adding indicator...")
+        log_debug(f"Location Indicators → '{layer.name()}' → adding indicator...")
         return indicator
 
     return None

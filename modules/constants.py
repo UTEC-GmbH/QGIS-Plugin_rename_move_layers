@@ -7,13 +7,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 
-from PyQt5.QtGui import QIcon
 from qgis.core import Qgis
 from qgis.PyQt.QtCore import QCoreApplication
+from qgis.PyQt.QtGui import QIcon
 
 from .resource_utils import resources
 
-EMPTY_LAYER_NAME: str = "empty layer"
 
 GEOMETRY_SUFFIX_MAP: dict[Qgis.GeometryType, str] = {
     Qgis.GeometryType.Line: "l",

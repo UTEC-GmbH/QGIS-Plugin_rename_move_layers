@@ -7,19 +7,21 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import processing
 from osgeo import ogr
 from qgis.core import (
     Qgis,
     QgsLayerTree,
     QgsMapLayer,
     QgsProject,
+    QgsRasterLayer,
     QgsVectorFileWriter,
     QgsVectorLayer,
     QgsWkbTypes,
 )
 from qgis.PyQt.QtCore import QCoreApplication
 
-from .constants import EMPTY_LAYER_NAME, GEOMETRY_SUFFIX_MAP
+from .constants import GEOMETRY_SUFFIX_MAP
 from .general import (
     clear_attribute_table,
     get_current_project,
@@ -37,16 +39,22 @@ if TYPE_CHECKING:
     from qgis.core import QgsMapLayerStyle, QgsMapLayerStyleManager
 
 
-def check_gpkg(gpkg_path: Path) -> None:
+def create_gpkg(gpkg_path: Path | None = None) -> Path:
     """Check if the GeoPackage exists and create an empty one if not.
 
     :param gpkg_path: The path to the GeoPackage.
     """
-    if gpkg_path.exists():
-        log_debug(f"Project GeoPackage found in '{gpkg_path}'")
-        return
 
-    log_debug("Project GeoPackage does not exist yet. Creating empty GeoPackage...")
+    if gpkg_path is None:
+        gpkg_path = project_gpkg()
+
+    if gpkg_path.exists():
+        log_debug(f"Existing GeoPackage found in '{gpkg_path}'")
+        return gpkg_path
+
+    log_debug(
+        f"GeoPackage does not exist yet. Creating empty GeoPackage '{gpkg_path}'..."
+    )
 
     driver = ogr.GetDriverByName("GPKG")
     ds = driver.CreateDataSource(str(gpkg_path))
@@ -54,6 +62,8 @@ def check_gpkg(gpkg_path: Path) -> None:
         raise_runtime_error(f"Could not create GeoPackage at '{gpkg_path}'")
     # close datasource to flush file
     ds = None
+
+    return gpkg_path
 
 
 def check_existing_layer(gpkg_path: Path, layer: QgsMapLayer) -> str:
@@ -103,51 +113,138 @@ def check_existing_layer(gpkg_path: Path, layer: QgsMapLayer) -> str:
     return f"{base_name}{geometry_type_suffix(layer)}"
 
 
-def add_layers_to_gpkg() -> None:
-    """Add the selected layers to the project's GeoPackage."""
+def add_vector_layer_to_gpkg(
+    project: QgsProject, layer: QgsMapLayer, gpkg_path: Path
+) -> tuple:
+    """Add a vector layer to the GeoPackage.
+
+    :param layer: The layer to add.
+    :param gpkg_path: The path to the GeoPackage.
+    """
+
+    options = QgsVectorFileWriter.SaveVectorOptions()
+    options.driverName = "GPKG"
+    options.layerName = check_existing_layer(gpkg_path, layer)
+    options.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteLayer
+
+    return QgsVectorFileWriter.writeAsVectorFormatV3(
+        layer, str(gpkg_path), project.transformContext(), options
+    )
+
+
+def add_raster_layer_to_gpkg(layer: QgsMapLayer, gpkg_path: Path) -> dict:
+    """Add a raster layer to the GeoPackage using gdal:warpreproject.
+
+    This function uses `gdal:warpreproject` as it can handle various raster
+    sources, including file-based rasters and web services (like XYZ tiles),
+    and correctly adds them to a GeoPackage.
+
+    :param layer: The layer to add.
+    :param gpkg_path: The path to the GeoPackage.
+    """
+    layer_name: str = check_existing_layer(gpkg_path, layer)
+    params: dict = {
+        "INPUT": layer,
+        "SOURCE_CRS": layer.crs(),
+        "TARGET_CRS": layer.crs(),
+        "OUTPUT": str(gpkg_path),
+        "OPTIONS": f"APPEND_SUBDATASET=YES,RASTER_TABLE={layer_name},"
+        "RASTER_TABLE_OPTIONS=OVERWRITE=YES",
+    }
+
+    return processing.run("gdal:warpreproject", params)
+
+
+def clear_autocad_attributes(layer: QgsMapLayer, gpkg_path: Path) -> None:
+    """Clear all AutoCAD attributes from a layer's attribute table.
+
+    :param layer: The layer to clear AutoCAD attributes from.
+    """
+
+    uri: str = f"{gpkg_path}|layername={layer.name()}"
+    gpkg_layer = QgsVectorLayer(uri, layer.name(), "ogr")
+    if gpkg_layer.isValid() and isinstance(layer, QgsVectorLayer):
+        is_autocad_import: bool = all(
+            s in layer.source().lower()
+            for s in ["|subset=layer", " and space=", " and block="]
+        )
+        if is_autocad_import:
+            log_debug(
+                f"AutoCAD import detected for layer '{layer.name()}'. "
+                "Clearing attribute table."
+            )
+            clear_attribute_table(gpkg_layer)
+    else:
+        log_debug(f"Could not reload layer '{layer.name()}' from GeoPackage.")
+
+
+def add_layers_to_gpkg(
+    layers: list[QgsMapLayer] | None = None, gpkg_path: Path | None = None
+) -> dict:
+    """Add the selected layers to the project's GeoPackage.
+
+    :param gpkg_path: Optional path to the GeoPackage. If not provided, the project's
+                      default GeoPackage is used.
+    :param layers: Optional list of layers to add. If not provided, the currently
+                   selected layers are used.
+    :returns: A dictionary containing the results of the operation, including
+              successes, failures, and a mapping of original layers to their
+              names in the GeoPackage.
+    """
 
     project: QgsProject = get_current_project()
-    layers: list[QgsMapLayer] = get_selected_layers()
-    gpkg_path: Path = project_gpkg()
-    check_gpkg(gpkg_path)
-    results: dict = {"successes": 0, "failures": []}
+    if gpkg_path is None:
+        gpkg_path = project_gpkg()
 
+    if not gpkg_path.exists():
+        raise_runtime_error(f"GeoPackage does not exist at '{gpkg_path}'")
+
+    results: dict = {"successes": 0, "failures": [], "layer_mapping": {}}
+    if layers is None:
+        layers = get_selected_layers()
     for layer in layers:
-        if isinstance(layer, QgsVectorLayer) and layer.name() != EMPTY_LAYER_NAME:
-            options = QgsVectorFileWriter.SaveVectorOptions()
-            options.driverName = "GPKG"
-            options.layerName = check_existing_layer(gpkg_path, layer)
-            options.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteLayer
+        layer_name: str = check_existing_layer(gpkg_path, layer)
+        log_debug(
+            f"Adding layer '{layer.name()}' of type '{layer.type()}' "
+            f"to GeoPackage {gpkg_path.name}..."
+        )
 
-            error: tuple = QgsVectorFileWriter.writeAsVectorFormatV3(
-                layer, str(gpkg_path), project.transformContext(), options
-            )
+        if isinstance(layer, QgsVectorLayer):
+            error: tuple = add_vector_layer_to_gpkg(project, layer, gpkg_path)
             if error[0] == QgsVectorFileWriter.WriterError.NoError:
                 results["successes"] += 1
-
-                # Load the new layer from the GeoPackage
-                uri: str = f"{gpkg_path}|layername={options.layerName}"
-                gpkg_layer = QgsVectorLayer(uri, options.layerName, "ogr")
-                if gpkg_layer.isValid() and isinstance(layer, QgsVectorLayer):
-                    is_autocad_import: bool = all(
-                        s in layer.source().lower()
-                        for s in ["|subset=layer", " and space=", " and block="]
-                    )
-                    if is_autocad_import:
-                        clear_attribute_table(gpkg_layer)
-                else:
-                    log_debug(
-                        f"Could not reload layer '{layer.name()}' from GeoPackage."
-                    )
-
+                results["layer_mapping"][layer] = layer_name
+                clear_autocad_attributes(layer, gpkg_path)
             else:
                 results["failures"].append((layer.name(), error[1]))
+                log_debug(f"Failed to add layer '{layer.name()}': {error[1]}")
+
+        elif isinstance(layer, QgsRasterLayer):
+            if "url=" in layer.source():
+                log_debug(f"Layer '{layer.name()}' is a web service. Skipping.")
+                results["successes"] += 1
+                results["layer_mapping"][layer] = layer_name
+            else:
+                raster_results: dict = add_raster_layer_to_gpkg(layer, gpkg_path)
+                if raster_results["OUTPUT"]:
+                    results["successes"] += 1
+                    results["layer_mapping"][layer] = layer_name
+                else:
+                    results["failures"].append((layer.name(), raster_results["LOG"]))
+                    log_debug(
+                        f"Failed to add layer '{layer.name()}': {raster_results['LOG']}"
+                    )
+        else:
+            results["failures"].append((layer.name(), "Unsupported layer type."))
+            log_debug(f"Failed to add layer '{layer.name()}': Unsupported layer type.")
 
     log_summary_message(
         successes=results["successes"],
         failures=results["failures"],
         action="Added to GeoPackage",
     )
+
+    return results
 
 
 def copy_layer_style(source_layer: QgsMapLayer, target_layer: QgsMapLayer) -> None:
@@ -187,11 +284,27 @@ def copy_layer_style(source_layer: QgsMapLayer, target_layer: QgsMapLayer) -> No
     target_layer.emitStyleChanged()
 
 
-def add_layers_from_gpkg_to_project() -> None:
-    """Add the selected layers from the project's GeoPackage."""
-    project: QgsProject = get_current_project()
-    selected_layers: list[QgsMapLayer] = get_selected_layers()
-    gpkg_path: Path = project_gpkg()
+def add_layers_from_gpkg_to_project(
+    gpkg_path: Path | None = None,
+    project: QgsProject | None = None,
+    layers: list[QgsMapLayer] | None = None,
+    layer_mapping: dict[QgsMapLayer, str] | None = None,
+) -> None:
+    """Add the selected layers from the project's GeoPackage.
+
+    :param gpkg_path: Optional path to the GeoPackage.
+    :param project: Optional project to add layers to.
+    :param layers: Optional list of layers to add.
+    :param layer_mapping: Optional mapping of original layer objects to their
+                          names in the GeoPackage.
+    """
+    if project is None:
+        project = get_current_project()
+    if layers is None:
+        layers = get_selected_layers()
+    if gpkg_path is None:
+        gpkg_path = project_gpkg()
+
     gpkg_path_str = str(gpkg_path)
 
     root: QgsLayerTree | None = project.layerTreeRoot()
@@ -204,12 +317,34 @@ def add_layers_from_gpkg_to_project() -> None:
     added_layers: list[str] = []
     not_found_layers: list[str] = []
 
-    for layer_to_find in selected_layers:
-        layer_name: str = layer_to_find.name()
+    for layer_to_find in layers:
+        # Determine the layer name in the GPKG (or original name for web layers)
+        if layer_mapping and layer_to_find in layer_mapping:
+            layer_name: str = layer_mapping[layer_to_find]
+        else:
+            layer_name = layer_to_find.name()
 
-        # Construct the layer URI and create a QgsVectorLayer
-        uri: str = f"{gpkg_path_str}|layername={layer_name}"
-        gpkg_layer = QgsVectorLayer(uri, layer_name, "ogr")
+        # Handle Web Service Layers (skip GPKG lookup, just clone)
+        if (
+            isinstance(layer_to_find, QgsRasterLayer)
+            and "url=" in layer_to_find.source()
+        ):
+            # Clone the layer to avoid modifying the original
+            gpkg_layer = layer_to_find.clone()
+            # Ensure the cloned layer has the correct name
+            # (it might have been renamed in mapping, though unlikely for web layers)
+            gpkg_layer.setName(layer_name)
+
+        # Handle Local Raster Layers (load from GPKG)
+        elif isinstance(layer_to_find, QgsRasterLayer):
+            uri: str = f"GPKG:{gpkg_path_str}:{layer_name}"
+            gpkg_layer = QgsRasterLayer(uri, layer_name, "gdal")
+
+        # Handle Vector Layers (load from GPKG)
+        else:
+            # Construct the layer URI and create a QgsVectorLayer
+            uri: str = f"{gpkg_path_str}|layername={layer_name}"
+            gpkg_layer = QgsVectorLayer(uri, layer_name, "ogr")
 
         if not gpkg_layer.isValid():
             not_found_layers.append(layer_name)
@@ -223,7 +358,13 @@ def add_layers_from_gpkg_to_project() -> None:
         added_layers.append(layer_name)
 
         # Copy the layer's style to the GeoPackage layer
-        copy_layer_style(layer_to_find, gpkg_layer)
+        # (only if it's not a cloned web layer)
+        # Web layers already have their style from cloning
+        if not (
+            "url=" in layer_to_find.source()
+            and isinstance(layer_to_find, QgsRasterLayer)
+        ):
+            copy_layer_style(layer_to_find, gpkg_layer)
 
     if added_layers:
         log_debug(
@@ -247,5 +388,5 @@ def add_layers_from_gpkg_to_project() -> None:
 def move_layers_to_gpkg() -> None:
     """Move the selected layers to the project's GeoPackage."""
 
-    add_layers_to_gpkg()
-    add_layers_from_gpkg_to_project()
+    results = add_layers_to_gpkg()
+    add_layers_from_gpkg_to_project(layer_mapping=results.get("layer_mapping"))
