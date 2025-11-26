@@ -7,21 +7,23 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import processing
 from osgeo import ogr
 from qgis.core import (
     Qgis,
     QgsLayerTree,
     QgsMapLayer,
     QgsProject,
+    QgsRasterDataProvider,
+    QgsRasterFileWriter,
     QgsRasterLayer,
+    QgsRasterPipe,
     QgsVectorFileWriter,
     QgsVectorLayer,
     QgsWkbTypes,
 )
 from qgis.PyQt.QtCore import QCoreApplication
 
-from .constants import GEOMETRY_SUFFIX_MAP
+from .constants import GEOMETRY_SUFFIX_MAP, LAYER_TYPES
 from .general import (
     clear_attribute_table,
     get_current_project,
@@ -49,17 +51,17 @@ def create_gpkg(gpkg_path: Path | None = None) -> Path:
         gpkg_path = project_gpkg()
 
     if gpkg_path.exists():
-        log_debug(f"Existing GeoPackage found in '{gpkg_path}'")
+        log_debug(f"Existing GeoPackage found in \n'{gpkg_path}'")
         return gpkg_path
 
     log_debug(
-        f"GeoPackage does not exist yet. Creating empty GeoPackage '{gpkg_path}'..."
+        f"GeoPackage does not exist yet. Creating empty GeoPackage \n'{gpkg_path}'..."
     )
 
     driver = ogr.GetDriverByName("GPKG")
     ds = driver.CreateDataSource(str(gpkg_path))
     if ds is None:
-        raise_runtime_error(f"Could not create GeoPackage at '{gpkg_path}'")
+        raise_runtime_error(f"Could not create GeoPackage at \n'{gpkg_path}'")
     # close datasource to flush file
     ds = None
 
@@ -132,27 +134,54 @@ def add_vector_layer_to_gpkg(
     )
 
 
-def add_raster_layer_to_gpkg(layer: QgsMapLayer, gpkg_path: Path) -> dict:
-    """Add a raster layer to the GeoPackage using gdal:warpreproject.
+def add_raster_layer_to_gpkg(
+    layer: QgsMapLayer, gpkg_path: Path
+) -> dict[str, str | None]:
+    """Add a raster layer to the GeoPackage using QgsRasterFileWriter.
 
-    This function uses `gdal:warpreproject` as it can handle various raster
-    sources, including file-based rasters and web services (like XYZ tiles),
-    and correctly adds them to a GeoPackage.
+    Args:
+        layer: The layer to add.
+        gpkg_path: The path to the GeoPackage.
 
-    :param layer: The layer to add.
-    :param gpkg_path: The path to the GeoPackage.
+    Returns:
+        A dictionary with the result. The 'error' key will be None on
+        success or contain an error message on failure.
     """
+    if not isinstance(layer, QgsRasterLayer):
+        return {"error": "Layer is not a valid raster layer.", "OUTPUT": None}
+
+    provider: QgsRasterDataProvider | None = layer.dataProvider()
+    if not provider:
+        return {"error": "Could not get raster data provider.", "OUTPUT": None}
+
     layer_name: str = check_existing_layer(gpkg_path, layer)
-    params: dict = {
-        "INPUT": layer,
-        "SOURCE_CRS": layer.crs(),
-        "TARGET_CRS": layer.crs(),
-        "OUTPUT": str(gpkg_path),
-        "OPTIONS": f"APPEND_SUBDATASET=YES,RASTER_TABLE={layer_name},"
-        "RASTER_TABLE_OPTIONS=OVERWRITE=YES",
+
+    options: dict[str, str] = {
+        "RASTER_TABLE": layer_name,
+        "APPEND_SUBDATASET": "YES",
     }
 
-    return processing.run("gdal:warpreproject", params)
+    writer = QgsRasterFileWriter(str(gpkg_path))
+    writer.setOutputFormat("GPKG")
+
+    # Convert options dict to list of strings "KEY=VALUE"
+    create_options = [f"{k}={v}" for k, v in options.items()]
+    writer.setCreateOptions(create_options)
+
+    pipe = QgsRasterPipe()
+    pipe.set(provider.clone())
+    error: QgsRasterFileWriter.WriterError = writer.writeRaster(
+        pipe,
+        layer.width(),
+        layer.height(),
+        layer.extent(),
+        layer.crs(),
+    )
+
+    if error == QgsRasterFileWriter.WriterError.NoError:
+        return {"error": None, "OUTPUT": str(gpkg_path)}
+
+    return {"error": error, "OUTPUT": None}
 
 
 def clear_autocad_attributes(layer: QgsMapLayer, gpkg_path: Path) -> None:
@@ -205,8 +234,9 @@ def add_layers_to_gpkg(
     for layer in layers:
         layer_name: str = check_existing_layer(gpkg_path, layer)
         log_debug(
-            f"Adding layer '{layer.name()}' of type '{layer.type()}' "
-            f"to GeoPackage {gpkg_path.name}..."
+            f"Adding layer '{layer.name()}' of type "
+            f"'{LAYER_TYPES.get(layer.type(), layer.type())}' "
+            f"to GeoPackage '{gpkg_path.name}'..."
         )
 
         if isinstance(layer, QgsVectorLayer):
@@ -219,7 +249,7 @@ def add_layers_to_gpkg(
                 results["failures"].append((layer.name(), error[1]))
                 log_debug(f"Failed to add layer '{layer.name()}': {error[1]}")
 
-        elif isinstance(layer, QgsRasterLayer):
+        elif isinstance(layer, QgsMapLayer) and layer.type() == QgsMapLayer.RasterLayer:
             if "url=" in layer.source():
                 log_debug(f"Layer '{layer.name()}' is a web service. Skipping.")
                 results["successes"] += 1
@@ -230,9 +260,9 @@ def add_layers_to_gpkg(
                     results["successes"] += 1
                     results["layer_mapping"][layer] = layer_name
                 else:
-                    results["failures"].append((layer.name(), raster_results["LOG"]))
+                    results["failures"].append((layer.name(), raster_results["error"]))
                     log_debug(
-                        f"Failed to add layer '{layer.name()}': {raster_results['LOG']}"
+                        f"Failed to add layer '{layer.name()}': {raster_results['error']}"
                     )
         else:
             results["failures"].append((layer.name(), "Unsupported layer type."))
@@ -329,8 +359,7 @@ def add_layers_from_gpkg_to_project(
             isinstance(layer_to_find, QgsRasterLayer)
             and "url=" in layer_to_find.source()
         ):
-            # Clone the layer to avoid modifying the original
-            gpkg_layer = layer_to_find.clone()
+            gpkg_layer: QgsMapLayer | None = layer_to_find.clone()
             # Ensure the cloned layer has the correct name
             # (it might have been renamed in mapping, though unlikely for web layers)
             gpkg_layer.setName(layer_name)

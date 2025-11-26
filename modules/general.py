@@ -77,17 +77,17 @@ def project_gpkg() -> Path:
     gpkg_path: Path = project_file.with_suffix(".gpkg")
 
     if gpkg_path.exists():
-        log_debug(f"Project GeoPackage found in '{gpkg_path}'")
+        log_debug(f"Project GeoPackage found in \n'{gpkg_path}'")
         return gpkg_path
 
     log_debug(
-        f"Project GeoPackage does not exist yet. Creating empty GeoPackage '{gpkg_path}'..."
+        f"Project GeoPackage does not exist yet. Creating empty GeoPackage \n'{gpkg_path}'..."
     )
 
     driver = ogr.GetDriverByName("GPKG")
     ds = driver.CreateDataSource(str(gpkg_path))
     if ds is None:
-        raise_runtime_error(f"Could not create GeoPackage at '{gpkg_path}'")
+        raise_runtime_error(f"Could not create GeoPackage at \n'{gpkg_path}'")
     # close datasource to flush file
     ds = None
     return gpkg_path

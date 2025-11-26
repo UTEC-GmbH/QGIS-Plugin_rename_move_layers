@@ -4,8 +4,7 @@ Determine the location of the layer's data source.
 """
 
 import os
-import sys
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from qgis.core import QgsMapLayer, QgsProject, QgsVectorLayer
 from qgis.gui import QgisInterface, QgsLayerTreeViewIndicator
@@ -14,33 +13,11 @@ from .constants import LayerLocation
 from .general import project_gpkg
 from .logs_and_errors import log_debug
 
-
-def _is_within(child: Path, parent: Path) -> bool:
-    """Return True if child path is within parent directory (issue #4, py<3.9)."""
-    try:
-        child_res: Path = child.resolve(strict=False)
-        parent_res: Path = parent.resolve(strict=False)
-        common: str = os.path.commonpath([str(child_res), str(parent_res)])
-        return common == str(parent_res)
-    except Exception:
-        return False
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
-def _paths_equal(a: Path, b: Path) -> bool:
-    """Robust path equality across platforms and links (issue #4)."""
-    try:
-        # Prefer samefile when possible
-        return a.exists() and b.exists() and a.samefile(b)
-    except Exception:
-        # Fall back to case-insensitive normalized comparison on Windows
-        if sys.platform.startswith("win"):
-            return os.path.normcase(str(a.resolve(strict=False))) == os.path.normcase(
-                str(b.resolve(strict=False))
-            )
-        return str(a.resolve(strict=False)) == str(b.resolve(strict=False))
-
-
-def get_layer_location(project: QgsProject, layer: QgsMapLayer) -> LayerLocation | None:
+def get_layer_location(layer: QgsMapLayer) -> LayerLocation | None:
     """Determine the location of the layer's data source.
 
     This function analyzes the layer's source string to classify its location
@@ -58,11 +35,16 @@ def get_layer_location(project: QgsProject, layer: QgsMapLayer) -> LayerLocation
         or None if no indicator should be shown (e.g., for memory layers or if
         the project is not saved).
     """
-    log_debug(f"Location Indicators → '{layer.name()}' → Checking location...")
-
-    if not project.fileName():
-        log_debug("Project file name could not be found.")
-        return None
+    layer_source: str = os.path.normcase(layer.source())
+    gpkg_path: Path = project_gpkg()
+    gpkg: str = os.path.normcase(str(gpkg_path))
+    project_folder: str = os.path.normcase(str(gpkg_path.parent))
+    log_debug(
+        f"Location Indicators → '{layer.name()}' → Checking location...\n"
+        f"Layer Source: {layer_source}\n"
+        f"Project GeoPackage: {gpkg}\n"
+        f"Project Folder: {project_folder}"
+    )
 
     # Check if the layer is empty
     if isinstance(layer, QgsVectorLayer) and layer.featureCount() == 0:
@@ -71,43 +53,40 @@ def get_layer_location(project: QgsProject, layer: QgsMapLayer) -> LayerLocation
 
     # Check if the layer is a memory layer
     # (temporary layers get an indicator from QGIS itself)
-    source: str = layer.source()
-    if source.startswith("memory"):
+    if layer_source.startswith("memory"):
         log_debug(
-            f"Location Indicators → '{layer.name()}' → "
-            "memory layer - no indicator needed."
+            f"Location Indicators → '{layer.name()}' → memory layer - QGIS indicator."
         )
         return None
 
     # Check if the layer is a cloud source
-    if "url=" in source:
+    if "url=" in layer_source:
         log_debug(f"Location Indicators → '{layer.name()}' → cloud data source.")
         return LayerLocation.CLOUD
 
+    # Check if the layer is in the project GeoPackage
+    if gpkg in layer_source:
+        log_debug(f"Location Indicators → '{layer.name()}' → in project GeoPackage.")
+        return LayerLocation.GPKG_PROJECT
+
     # Check if the layer is stored in the project folder
-    if path_part := source.split("|")[0]:
-        project_dir: Path = Path(project.fileName()).parent.resolve()
-        gpkg_path: Path = project_gpkg()
-        layer_path: Path = Path(path_part).resolve(strict=False)
-
-        # Check if the layer is stored in the project GeoPackage
-        if _paths_equal(layer_path, gpkg_path):
-            location = LayerLocation.GPKG_PROJECT
-
-        # Check if the layer is stored within the project folder
-        elif _is_within(layer_path, project_dir):
-            location = (
-                LayerLocation.GPKG_FOLDER
-                if ".gpkg" in layer_path.name
-                else LayerLocation.FOLDER_NO_GPKG
+    if project_folder in layer_source:
+        # Check if the layer is stored in a GeoPackage (not the project GeoPackage)
+        if ".gpkg" in layer_source:
+            log_debug(
+                f"Location Indicators → '{layer.name()}' → "
+                "in a GeoPackage in the project folder."
             )
-        else:
-            location = LayerLocation.EXTERNAL
+            return LayerLocation.GPKG_FOLDER
 
-        log_debug(f"Location Indicators → '{layer.name()}' → location: {location.name}")
-        return location
+        log_debug(
+            f"Location Indicators → '{layer.name()}' → "
+            "in the project folder, but not in a GeoPackage."
+        )
+        return LayerLocation.FOLDER_NO_GPKG
 
-    return None
+    log_debug(f"Location Indicators → '{layer.name()}' → !!! external data source !!!")
+    return LayerLocation.EXTERNAL
 
 
 def add_location_indicator(
@@ -115,7 +94,7 @@ def add_location_indicator(
 ) -> QgsLayerTreeViewIndicator | None:
     """Add a location indicator for a single layer to the layer tree view."""
 
-    location: LayerLocation | None = get_layer_location(project, layer)
+    location: LayerLocation | None = get_layer_location(layer)
     if location is None:
         return None
 

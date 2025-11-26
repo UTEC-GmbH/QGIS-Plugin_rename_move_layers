@@ -7,17 +7,22 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 
-from qgis.core import Qgis
+from qgis.core import Qgis, QgsMapLayer
 from qgis.PyQt.QtCore import QCoreApplication
 from qgis.PyQt.QtGui import QIcon
 
 from .resource_utils import resources
 
-
 GEOMETRY_SUFFIX_MAP: dict[Qgis.GeometryType, str] = {
     Qgis.GeometryType.Line: "l",
     Qgis.GeometryType.Point: "pt",
     Qgis.GeometryType.Polygon: "pg",
+}
+
+LAYER_TYPES: dict = {
+    QgsMapLayer.VectorLayer: "VectorLayer",
+    QgsMapLayer.RasterLayer: "RasterLayer",
+    QgsMapLayer.PluginLayer: "PluginLayer",
 }
 
 
