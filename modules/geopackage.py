@@ -3,7 +3,9 @@
 This module contains the functions concerning GeoPackages.
 """
 
+import contextlib
 import re
+import sqlite3
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -41,7 +43,9 @@ if TYPE_CHECKING:
     from qgis.core import QgsMapLayerStyle, QgsMapLayerStyleManager
 
 
-def create_gpkg(gpkg_path: Path | None = None) -> Path:
+def create_gpkg(
+    gpkg_path: Path | None = None, *, delete_existing: bool = False
+) -> Path:
     """Check if the GeoPackage exists and create an empty one if not.
 
     :param gpkg_path: The path to the GeoPackage.
@@ -52,11 +56,10 @@ def create_gpkg(gpkg_path: Path | None = None) -> Path:
 
     if gpkg_path.exists():
         log_debug(f"Existing GeoPackage found in \n'{gpkg_path}'")
-        return gpkg_path
+        if not delete_existing:
+            return gpkg_path
 
-    log_debug(
-        f"GeoPackage does not exist yet. Creating empty GeoPackage \n'{gpkg_path}'..."
-    )
+    log_debug(f"Creating empty GeoPackage \n'{gpkg_path}'...")
 
     driver = ogr.GetDriverByName("GPKG")
     ds = driver.CreateDataSource(str(gpkg_path))
@@ -88,11 +91,26 @@ def check_existing_layer(gpkg_path: Path, layer: QgsMapLayer) -> str:
         return layer.name()
 
     layer_name: str = layer.name()
+
+    # Check if the layer exists in the GeoPackage using sqlite3 directly
+    # to avoid QGIS warnings about missing layers and OGR errors on empty GPKGs.
+    layer_exists = False
+    with contextlib.suppress(sqlite3.Error), sqlite3.connect(str(gpkg_path)) as conn:
+        cursor: sqlite3.Cursor = conn.cursor()
+        cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+            (layer_name,),
+        )
+        if cursor.fetchone():
+            layer_exists = True
+    if not layer_exists:
+        # Layer does not exist, safe to use original name.
+        return layer_name
+
     uri: str = f"{gpkg_path}|layername={layer_name}"
     gpkg_layer = QgsVectorLayer(uri, layer_name, "ogr")
 
     if not gpkg_layer.isValid():
-        # Layer does not exist, safe to use original name.
         return layer_name
 
     # A layer with the same name exists. Check geometry types.
@@ -108,7 +126,7 @@ def check_existing_layer(gpkg_path: Path, layer: QgsMapLayer) -> str:
     # Name matches but geometry is different. Create a new name with a suffix.
     # First, strip any existing geometry suffix from the layer name to get a
     # base name to prevent creating names with double suffixes (e.g., 'layer-pt-pt').
-    suffix_values: str = "|".join(GEOMETRY_SUFFIX_MAP.values())
+    suffix_values: str = "|".join([*list(GEOMETRY_SUFFIX_MAP.values()), "pl"])
     suffix_pattern: str = rf"\s-\s({suffix_values})$"
     base_name: str = re.sub(suffix_pattern, "", layer_name)
 
@@ -237,6 +255,12 @@ def add_layers_to_gpkg(
     if layers is None:
         layers = get_selected_layers()
     for layer in layers:
+        if "url=" in layer.source():
+            log_debug(f"Layer '{layer.name()}' is a web service. Skipping.")
+            results["successes"] += 1
+            results["layer_mapping"][layer] = layer.name()
+            continue
+
         layer_name: str = check_existing_layer(gpkg_path, layer)
 
         log_debug(
@@ -244,11 +268,6 @@ def add_layers_to_gpkg(
             f"of type {LAYER_TYPES.get(layer.type(), layer.type())}' "
             f"to GeoPackage '{gpkg_path.name}'..."
         )
-        if "url=" in layer.source():
-            log_debug(f"Layer '{layer.name()}' is a web service. Skipping.")
-            results["successes"] += 1
-            results["layer_mapping"][layer] = layer_name
-            continue
 
         if isinstance(layer, QgsVectorLayer):
             error: tuple = add_vector_layer_to_gpkg(project, layer, gpkg_path)
