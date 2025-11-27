@@ -200,6 +200,8 @@ def geometry_type_suffix(layer: QgsMapLayer) -> str:
     """
     if not isinstance(layer, QgsVectorLayer):
         return ""
+    if layer.name() == "polylines" or layer.name().endswith(" - pl"):
+        return " - pl"
 
     geom_type: Qgis.GeometryType = QgsWkbTypes.geometryType(layer.wkbType())
     geom_display_string: str = QgsWkbTypes.geometryDisplayString(geom_type)

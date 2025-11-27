@@ -110,6 +110,9 @@ def prepare_layers_for_shipping() -> None:
     file with the same styling.
     """
 
+    # Get current project and interface to copy properties from
+    original_project: QgsProject = get_current_project()
+
     layers: list[QgsMapLayer] = get_selected_layers()
 
     project_path: Path = get_path_to_project_file()
@@ -126,9 +129,6 @@ def prepare_layers_for_shipping() -> None:
 
     if not results["successes"]:
         return
-
-    # Get current project and interface to copy properties from
-    original_project: QgsProject = get_current_project()
 
     # Create Shipping Project file
     qgz_path: Path = versand_dir / f"{base_name}.qgz"

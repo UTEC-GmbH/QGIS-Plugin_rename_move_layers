@@ -135,7 +135,7 @@ def add_vector_layer_to_gpkg(
 
 
 def add_raster_layer_to_gpkg(
-    layer: QgsMapLayer, gpkg_path: Path
+    project: QgsProject, layer: QgsMapLayer, gpkg_path: Path
 ) -> dict[str, str | None]:
     """Add a raster layer to the GeoPackage using QgsRasterFileWriter.
 
@@ -147,6 +147,7 @@ def add_raster_layer_to_gpkg(
         A dictionary with the result. The 'error' key will be None on
         success or contain an error message on failure.
     """
+
     if not isinstance(layer, QgsRasterLayer):
         return {"error": "Layer is not a valid raster layer.", "OUTPUT": None}
 
@@ -156,16 +157,15 @@ def add_raster_layer_to_gpkg(
 
     layer_name: str = check_existing_layer(gpkg_path, layer)
 
-    options: dict[str, str] = {
-        "RASTER_TABLE": layer_name,
-        "APPEND_SUBDATASET": "YES",
-    }
-
     writer = QgsRasterFileWriter(str(gpkg_path))
     writer.setOutputFormat("GPKG")
 
-    # Convert options dict to list of strings "KEY=VALUE"
-    create_options = [f"{k}={v}" for k, v in options.items()]
+    options: dict[str, str] = {
+        "RASTER_TABLE": layer_name,
+        "APPEND_SUBDATASET": "YES",
+        "USE_GPKG_METADATA_TABLES": "YES",
+    }
+    create_options: list[str] = [f"{k}={v}" for k, v in options.items()]
     writer.setCreateOptions(create_options)
 
     pipe = QgsRasterPipe()
@@ -176,11 +176,16 @@ def add_raster_layer_to_gpkg(
         layer.height(),
         layer.extent(),
         layer.crs(),
+        project.transformContext(),
     )
 
     if error == QgsRasterFileWriter.WriterError.NoError:
+        log_debug(f"Raster Layer '{layer_name}' added to GeoPackage.")
         return {"error": None, "OUTPUT": str(gpkg_path)}
 
+    log_debug(
+        f"Failed to add raster layer '{layer_name}' to GeoPackage. Error: {error}"
+    )
     return {"error": error, "OUTPUT": None}
 
 
@@ -233,11 +238,17 @@ def add_layers_to_gpkg(
         layers = get_selected_layers()
     for layer in layers:
         layer_name: str = check_existing_layer(gpkg_path, layer)
+
         log_debug(
-            f"Adding layer '{layer.name()}' of type "
-            f"'{LAYER_TYPES.get(layer.type(), layer.type())}' "
+            f"Adding layer '{layer.name()}' (layer_name: '{layer_name}') "
+            f"of type {LAYER_TYPES.get(layer.type(), layer.type())}' "
             f"to GeoPackage '{gpkg_path.name}'..."
         )
+        if "url=" in layer.source():
+            log_debug(f"Layer '{layer.name()}' is a web service. Skipping.")
+            results["successes"] += 1
+            results["layer_mapping"][layer] = layer_name
+            continue
 
         if isinstance(layer, QgsVectorLayer):
             error: tuple = add_vector_layer_to_gpkg(project, layer, gpkg_path)
@@ -245,25 +256,28 @@ def add_layers_to_gpkg(
                 results["successes"] += 1
                 results["layer_mapping"][layer] = layer_name
                 clear_autocad_attributes(layer, gpkg_path)
+                log_debug(
+                    f"Layer '{layer.name()}' added to "
+                    f"GeoPackage '{gpkg_path.name}' successfully."
+                )
             else:
                 results["failures"].append((layer.name(), error[1]))
                 log_debug(f"Failed to add layer '{layer.name()}': {error[1]}")
 
         elif isinstance(layer, QgsMapLayer) and layer.type() == QgsMapLayer.RasterLayer:
-            if "url=" in layer.source():
-                log_debug(f"Layer '{layer.name()}' is a web service. Skipping.")
+            raster_results: dict = add_raster_layer_to_gpkg(project, layer, gpkg_path)
+            if raster_results["OUTPUT"]:
                 results["successes"] += 1
                 results["layer_mapping"][layer] = layer_name
+                log_debug(
+                    f"Layer '{layer.name()}' added to "
+                    f"GeoPackage '{gpkg_path.name}' successfully."
+                )
             else:
-                raster_results: dict = add_raster_layer_to_gpkg(layer, gpkg_path)
-                if raster_results["OUTPUT"]:
-                    results["successes"] += 1
-                    results["layer_mapping"][layer] = layer_name
-                else:
-                    results["failures"].append((layer.name(), raster_results["error"]))
-                    log_debug(
-                        f"Failed to add layer '{layer.name()}': {raster_results['error']}"
-                    )
+                results["failures"].append((layer.name(), raster_results["error"]))
+                log_debug(
+                    f"Failed to add layer '{layer.name()}': {raster_results['error']}"
+                )
         else:
             results["failures"].append((layer.name(), "Unsupported layer type."))
             log_debug(f"Failed to add layer '{layer.name()}': Unsupported layer type.")
@@ -355,14 +369,30 @@ def add_layers_from_gpkg_to_project(
             layer_name = layer_to_find.name()
 
         # Handle Web Service Layers (skip GPKG lookup, just clone)
-        if (
-            isinstance(layer_to_find, QgsRasterLayer)
-            and "url=" in layer_to_find.source()
-        ):
+        if "url=" in layer_to_find.source():
+            # Check if a layer with the same source already exists in the project
+            layer_exists: bool = any(
+                existing_layer.source() == layer_to_find.source()
+                and existing_layer.name() == layer_name
+                for existing_layer in project.mapLayers().values()
+            )
+
+            # Skip if a layer with the same source AND name already exists
+            if layer_exists:
+                log_debug(
+                    f"Web service layer '{layer_name}' with the same source "
+                    "already exists. Skipping.",
+                    Qgis.Info,
+                )
+                continue
+
             gpkg_layer: QgsMapLayer | None = layer_to_find.clone()
-            # Ensure the cloned layer has the correct name
-            # (it might have been renamed in mapping, though unlikely for web layers)
-            gpkg_layer.setName(layer_name)
+            log_debug(f"Web service layer '{layer_name}' cloned.")
+            if gpkg_layer:
+                # Ensure the cloned layer has the correct name
+                # (it might have been renamed in mapping, though unlikely for web
+                # layers)
+                gpkg_layer.setName(layer_name)
 
         # Handle Local Raster Layers (load from GPKG)
         elif isinstance(layer_to_find, QgsRasterLayer):
@@ -377,6 +407,10 @@ def add_layers_from_gpkg_to_project(
 
         if not gpkg_layer.isValid():
             not_found_layers.append(layer_name)
+            log_debug(
+                f"Layer '{layer_name}' not found in GeoPackage.\nlooked for: {uri}",
+                Qgis.Warning,
+            )
             continue
 
         # Add the layer to the project registry first, but not the layer tree
