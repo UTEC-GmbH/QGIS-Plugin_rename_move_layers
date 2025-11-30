@@ -200,6 +200,7 @@ def _load_or_create_xml_tree(xml_path: Path) -> tuple[ElementTree, Element]:
             msg: str = f"Error parsing {xml_path}."
             logger.exception("❌ %s", msg)
             raise ReleaseScriptError(msg) from e
+        return tree, root
 
     logger.warning(
         "⚠️ Master repository file not found at '%s'. "
