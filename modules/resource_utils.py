@@ -28,7 +28,8 @@ class _Icons:
     """Container for icon resources.
 
     Properties are defined for existing icons to enable auto-completion.
-    New icons can be accessed dynamically via dot-notation (e.g. resources.icons.new_icon)
+    New icons can be accessed dynamically via dot-notation
+    (e.g. resources.icons.new_icon)
     which will map to 'icons/new_icon.svg'.
     """
 

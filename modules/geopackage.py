@@ -347,6 +347,95 @@ def copy_layer_style(source_layer: QgsMapLayer, target_layer: QgsMapLayer) -> No
     target_layer.emitStyleChanged()
 
 
+def _initialize_parameters(
+    project: QgsProject | None,
+    layers: list[QgsMapLayer] | None,
+    gpkg_path: Path | None,
+) -> tuple[QgsProject, list[QgsMapLayer], Path]:
+    """Initialize and return the project, layers, and GeoPackage path.
+
+    Args:
+        project: The QGIS project instance.
+        layers: A list of layers to process.
+        gpkg_path: The path to the GeoPackage file.
+
+    Returns:
+        A tuple containing the initialized project, layers, and gpkg_path.
+    """
+    if project is None:
+        project = get_current_project()
+    if layers is None:
+        layers = get_selected_layers()
+    if gpkg_path is None:
+        gpkg_path = project_gpkg()
+    return project, layers, gpkg_path
+
+
+def _handle_web_service_layer(
+    layer_to_find: QgsMapLayer, layer_name: str, project: QgsProject
+) -> QgsMapLayer | None:
+    """Handle cloning and adding a web service layer.
+
+    Checks if a layer with the same source and name already exists.
+
+    Args:
+        layer_to_find: The original web service layer.
+        layer_name: The target name for the new layer.
+        project: The current QGIS project.
+
+    Returns:
+        A cloned QgsMapLayer, or None if it already exists.
+    """
+    layer_exists: bool = any(
+        existing_layer.source() == layer_to_find.source()
+        and existing_layer.name() == layer_name
+        for existing_layer in project.mapLayers().values()
+    )
+
+    if layer_exists:
+        log_debug(
+            f"Web service layer '{layer_name}' with the same source "
+            "already exists. Skipping.",
+            Qgis.Info,
+        )
+        return None
+
+    gpkg_layer: QgsMapLayer | None = layer_to_find.clone()
+    if gpkg_layer:
+        gpkg_layer.setName(layer_name)
+        log_debug(f"Web service layer '{layer_name}' cloned.")
+    return gpkg_layer
+
+
+def _create_layer_from_source(
+    layer_to_find: QgsMapLayer,
+    layer_name: str,
+    gpkg_path_str: str,
+    project: QgsProject,
+) -> tuple[QgsMapLayer | None, str]:
+    """Create a QgsMapLayer from its source (GPKG or web service).
+
+    Args:
+        layer_to_find: The original layer to be loaded.
+        layer_name: The name of the layer in the GeoPackage or for the clone.
+        gpkg_path_str: The string representation of the GeoPackage path.
+        project: The current QGIS project.
+
+    Returns:
+        A tuple containing the new QgsMapLayer (or None) and its URI string.
+    """
+    uri = ""
+    if "url=" in layer_to_find.source():
+        return _handle_web_service_layer(layer_to_find, layer_name, project), uri
+
+    if isinstance(layer_to_find, QgsRasterLayer):
+        uri = f"GPKG:{gpkg_path_str}:{layer_name}"
+        return QgsRasterLayer(uri, layer_name, "gdal"), uri
+
+    uri = f"{gpkg_path_str}|layername={layer_name}"
+    return QgsVectorLayer(uri, layer_name, "ogr"), uri
+
+
 def add_layers_from_gpkg_to_project(
     gpkg_path: Path | None = None,
     project: QgsProject | None = None,
@@ -361,91 +450,48 @@ def add_layers_from_gpkg_to_project(
     :param layer_mapping: Optional mapping of original layer objects to their
                           names in the GeoPackage.
     """
-    if project is None:
-        project = get_current_project()
-    if layers is None:
-        layers = get_selected_layers()
-    if gpkg_path is None:
-        gpkg_path = project_gpkg()
-
-    gpkg_path_str = str(gpkg_path)
+    project, layers, gpkg_path = _initialize_parameters(project, layers, gpkg_path)
 
     root: QgsLayerTree | None = project.layerTreeRoot()
     if not root:
-        # fmt: off
-        msg: str = QCoreApplication.translate("RuntimeError", "Could not get layer tree root.")  # noqa: E501
-        # fmt: on
+        msg = QCoreApplication.translate(
+            "RuntimeError", "Could not get layer tree root."
+        )
         raise_runtime_error(msg)
 
     added_layers: list[str] = []
     not_found_layers: list[str] = []
+    gpkg_path_str = str(gpkg_path)
 
     for layer_to_find in layers:
-        # Determine the layer name in the GPKG (or original name for web layers)
-        if layer_mapping and layer_to_find in layer_mapping:
-            layer_name: str = layer_mapping[layer_to_find]
-        else:
-            layer_name = layer_to_find.name()
+        layer_name = (
+            layer_mapping.get(layer_to_find, layer_to_find.name())
+            if layer_mapping
+            else layer_to_find.name()
+        )
 
-        # Handle Web Service Layers (skip GPKG lookup, just clone)
-        if "url=" in layer_to_find.source():
-            # Check if a layer with the same source already exists in the project
-            layer_exists: bool = any(
-                existing_layer.source() == layer_to_find.source()
-                and existing_layer.name() == layer_name
-                for existing_layer in project.mapLayers().values()
-            )
+        gpkg_layer, uri = _create_layer_from_source(
+            layer_to_find, layer_name, gpkg_path_str, project
+        )
 
-            # Skip if a layer with the same source AND name already exists
-            if layer_exists:
-                log_debug(
-                    f"Web service layer '{layer_name}' with the same source "
-                    "already exists. Skipping.",
-                    Qgis.Info,
-                )
-                continue
-
-            gpkg_layer: QgsMapLayer | None = layer_to_find.clone()
-            log_debug(f"Web service layer '{layer_name}' cloned.")
-            if gpkg_layer:
-                # Ensure the cloned layer has the correct name
-                # (it might have been renamed in mapping, though unlikely for web
-                # layers)
-                gpkg_layer.setName(layer_name)
-
-        # Handle Local Raster Layers (load from GPKG)
-        elif isinstance(layer_to_find, QgsRasterLayer):
-            uri: str = f"GPKG:{gpkg_path_str}:{layer_name}"
-            gpkg_layer = QgsRasterLayer(uri, layer_name, "gdal")
-
-        # Handle Vector Layers (load from GPKG)
-        else:
-            # Construct the layer URI and create a QgsVectorLayer
-            uri: str = f"{gpkg_path_str}|layername={layer_name}"
-            gpkg_layer = QgsVectorLayer(uri, layer_name, "ogr")
+        if not gpkg_layer:
+            # Layer was skipped (e.g., web layer already exists)
+            continue
 
         if not gpkg_layer.isValid():
             not_found_layers.append(layer_name)
-            log_debug(
-                f"Layer '{layer_name}' not found in GeoPackage.\nlooked for: {uri}",
-                Qgis.Warning,
-            )
+            msg = f"Layer '{layer_name}' not found in GeoPackage."
+            if uri:
+                msg += f"\nlooked for: {uri}"
+            log_debug(msg, Qgis.Warning)
             continue
 
-        # Add the layer to the project registry first, but not the layer tree
         project.addMapLayer(gpkg_layer, addToLegend=False)
-        # Then, insert it at the top of the layer tree
         root.insertLayer(0, gpkg_layer)
-
         added_layers.append(layer_name)
 
-        # Copy the layer's style to the GeoPackage layer
-        # (only if it's not a cloned web layer)
-        # Web layers already have their style from cloning
-        if not (
-            "url=" in layer_to_find.source()
-            and isinstance(layer_to_find, QgsRasterLayer)
-        ):
+        # Cloned web layers already have their style.
+        if "url=" not in layer_to_find.source():
             copy_layer_style(layer_to_find, gpkg_layer)
 
     if added_layers:
