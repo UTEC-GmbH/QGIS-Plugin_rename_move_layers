@@ -1,11 +1,20 @@
 [general]
 name=UTEC Layer Tools (dev)
 
-version=0.7
+version=0.8
 changelog=
+
+    Version 0.8:
+    - ✨ Neue Funktion: "Versand" 
+        - Im Projektodner wird ein "Versand"-Ordner erstellt
+        - Ausgewähnlte Layer werden in einem GeoPackage gespeichert in diesem Ordner gespeichert
+        - In dem Ordner wird eine Projektdatei erstellt, damit die Layer gleich aussehen wie im Projekt
+        - Projektdatei und GeoPackage können zusammen versendet werden.
+    - im Hintergrund werden Ressourcen anders verwendet (ohne Kompilieren)
+
+
     Version 0.7:
     - bugfix bei Erstellung eines neuen Projekt-GeoPackages 
-
 
     Version 0.6:
     - Beschriftung der Funktionen verbessert
