@@ -174,6 +174,23 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
         self.plugin_menu.setToolTipsVisible(True)
         self.plugin_menu.setIcon(self.plugin_icon)
 
+        # Add an action for moving layers
+        # fmt: off
+        # ruff: noqa: E501
+        button: str = QCoreApplication.translate("Menu_Button", "Copy Selected Layers to Project's GeoPackage")
+        tool_tip_text: str = QCoreApplication.translate("Menu_ToolTip", "<p><b>Copy Selected Layers to Project's GeoPackage</b></p><p><span style='font-weight:normal; font-style:normal;'>Selected layers or layers in selected groups are copied to the project's GeoPackage (a GeoPackage in the project folder with the same name as the project file) and added back from the GeoPackage to the top of the layer tree of the current project.</span></p>")
+        # fmt: on
+        move_action = self.add_action(
+            icon=resources.icons.main_move,
+            button_text=button,
+            callback=self.move_selected_layers,
+            parent=self.iface.mainWindow(),
+            add_to_menu=False,  # Added to custom menu
+            add_to_toolbar=False,
+            tool_tip=tool_tip_text,
+        )
+        self.plugin_menu.addAction(move_action)
+
         # Add an action for renaming layers
         # fmt: off
         # ruff: noqa: E501     
@@ -207,23 +224,6 @@ class UTECLayerTools(QObject):  # pylint: disable=too-many-instance-attributes
             tool_tip=tool_tip_text,
         )
         self.plugin_menu.addAction(undo_rename_action)
-
-        # Add an action for moving layers
-        # fmt: off
-        # ruff: noqa: E501
-        button: str = QCoreApplication.translate("Menu_Button", "Copy Selected Layers to Project's GeoPackage")
-        tool_tip_text: str = QCoreApplication.translate("Menu_ToolTip", "<p><b>Copy Selected Layers to Project's GeoPackage</b></p><p><span style='font-weight:normal; font-style:normal;'>Selected layers or layers in selected groups are copied to the project's GeoPackage (a GeoPackage in the project folder with the same name as the project file) and added back from the GeoPackage to the top of the layer tree of the current project.</span></p>")
-        # fmt: on
-        move_action = self.add_action(
-            icon=resources.icons.main_move,
-            button_text=button,
-            callback=self.move_selected_layers,
-            parent=self.iface.mainWindow(),
-            add_to_menu=False,  # Added to custom menu
-            add_to_toolbar=False,
-            tool_tip=tool_tip_text,
-        )
-        self.plugin_menu.addAction(move_action)
 
         # Add an action for renaming and moving layers
         # fmt: off
